@@ -13,6 +13,7 @@ const Dashboard = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [showServerBrowser, setShowServerBrowser] = useState(false);
   const [expandedDetails, setExpandedDetails] = useState(null); // Track which account has expanded details
+  const [totalMoney, setTotalMoney] = useState(0); // Track total money across all accounts
 
   useEffect(() => {
     const fetchData = async () => {
@@ -26,6 +27,9 @@ const Dashboard = () => {
         setAccounts(accountsData);
         setProcesses(processesData);
         setGameData(gameDataResponse);
+        
+        // Calculate total money
+        calculateTotalMoney(gameDataResponse);
         
         if (accountsData.length > 0) {
           setSelectedAccount(accountsData[0]);
@@ -49,6 +53,9 @@ const Dashboard = () => {
         ]);
         setProcesses(processesData);
         setGameData(gameDataResponse);
+        
+        // Update total money when game data refreshes
+        calculateTotalMoney(gameDataResponse);
       } catch (error) {
         console.error('Error refreshing data:', error);
       }
@@ -56,6 +63,27 @@ const Dashboard = () => {
     
     return () => clearInterval(interval);
   }, []);
+
+  // Helper function to calculate total money across all accounts
+  const calculateTotalMoney = (data) => {
+    let total = 0;
+    
+    data.forEach(account => {
+      // Handle different money formats (numeric or string with currency symbols)
+      if (typeof account.money === 'number') {
+        total += account.money;
+      } else if (typeof account.money === 'string') {
+        // Remove currency symbols and commas, then parse as number
+        const cleanedMoney = account.money.replace(/[$,£€]/g, '');
+        const moneyValue = parseFloat(cleanedMoney);
+        if (!isNaN(moneyValue)) {
+          total += moneyValue;
+        }
+      }
+    });
+    
+    setTotalMoney(total);
+  };
 
   const handleLaunch = async (e) => {
     e.preventDefault();
@@ -135,6 +163,7 @@ const Dashboard = () => {
     try {
       const data = await getGameData();
       setGameData(data);
+      calculateTotalMoney(data);
     } catch (error) {
       console.error('Error refreshing game data:', error);
     }
@@ -151,6 +180,14 @@ const Dashboard = () => {
     } else {
       return '#F44336'; // Red
     }
+  };
+
+  // Format money value with commas
+  const formatMoney = (value) => {
+    if (typeof value === 'number') {
+      return value.toLocaleString();
+    }
+    return value || '0';
   };
 
   // Toggle expanded details for a specific account
@@ -250,51 +287,59 @@ const Dashboard = () => {
           <div className="no-data-message">
             <p>No game data available. Run the Roblox script in your game:</p>
             <pre className="lua-code">
-{`local player = game.Players.LocalPlayer 
+{`--Run this to monitor your players stats in block spin
+local player = game.Players.LocalPlayer 
 
-local otherData = {
-    playerName = player.Name,
-    displayName = player.DisplayName,
-    position = tostring(player.Character and player.Character:GetPrimaryPartCFrame().Position or Vector3.new(0,0,0)),
-    health = player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health or 0,
-    maxHealth = player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.MaxHealth or 0,
-    level = player.PlayerGui.LevelUp.Frame.LevelCardHolder.LevelCard.TextLabel.text
-}
+function makeRequest()
 
-local JSON = {
-    accountName = player.Name,
-    money = player.PlayerGui.TopRightHud.Holder.Frame.MoneyTextLabel.text,
-    placeId = game.PlaceId,
-    otherData = otherData
-}
+    local otherData = {
+        playerName = player.Name,
+        displayName = player.DisplayName,
+        position = tostring(player.Character and player.Character:GetPrimaryPartCFrame().Position or Vector3.new(0,0,0)),
+        health = player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health or 0,
+        maxHealth = player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.MaxHealth or 0,
+        level = player.PlayerGui.LevelUp.Frame.LevelCardHolder.LevelCard.TextLabel.text
+    }
+    
+    local JSON = {
+        accountName = player.Name,
+        money = player.PlayerGui.TopRightHud.Holder.Frame.MoneyTextLabel.text,
+        placeId = game.PlaceId,
+        otherData = otherData
+    }
+    
+    local encodedData = game:GetService("HttpService"):JSONEncode(JSON)
+    
+    local r_t = {
+        Url = 'http://localhost:3000/api/gameData',
+        Method = 'POST',
+        Headers = {['Content-Type'] = 'application/json'},
+        Body = encodedData
+    }
 
-local leaveJSON = {
-    accountName = player.Name
-}
-
-local encodedData = game:GetService("HttpService"):JSONEncode(JSON)
-local leaveGameData = game:GetService("HttpService"):JSONEncode(leaveJSON)
-
-local r_t = {
-    Url = 'http://localhost:3000/api/gameData',
-    Method = 'POST',
-    Headers = {['Content-Type'] = 'application/json'},
-    Body = encodedData
-}
-
--- Updated URL from "leftGame" to "leaveGame" to match server endpoint
-local r_s = {
-    Url = 'http://localhost:3000/api/leaveGame',
-    Method = 'POST',
-    Headers = {['Content-Type'] = 'application/json'},
-    Body = leaveGameData
-}
+    http_request(r_t)
+    
+end
 
 -- Get the Players service
 local Players = game:GetService("Players")
 
 -- Function to detect when the local player is leaving
 local function onPlayerLeaving(leavingPlayer)
+
+    local leaveJSON = {
+        accountName = player.Name
+    }
+
+    local leaveGameData = game:GetService("HttpService"):JSONEncode(leaveJSON)
+
+    local r_s = {
+        Url = 'http://localhost:3000/api/leaveGame',
+        Method = 'POST',
+        Headers = {['Content-Type'] = 'application/json'},
+        Body = leaveGameData
+    }
+
     -- Check if it's the local player who's leaving
     if leavingPlayer == player then
         -- Send leave notification to server
@@ -312,22 +357,31 @@ if game:GetService("CoreGui"):FindFirstChild("RobloxPromptGui") then
     game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
         if child.Name == "ErrorPrompt" then
             pcall(function()
-                http_request(r_s)
+                onPlayerLeaving(player.Name)
             end)
         end
     end)
 end
 
 spawn(function()
-    http_request(r_t)
+    makeRequest()
     while wait(10) do
-        http_request(r_t)
+        makeRequest()
     end
 end)`}
             </pre>
           </div>
         ) : (
           <div>
+            {/* Total Money Display */}
+            <div className="total-money-container">
+              <div className="total-money-card">
+                <div className="total-money-label">Total Money:</div>
+                <div className="total-money-value">${formatMoney(totalMoney)}</div>
+                <div className="total-money-info">Combined from {gameData.length} active accounts</div>
+              </div>
+            </div>
+
             <div className="table-container">
               <table className="game-data-table">
                 <thead>
