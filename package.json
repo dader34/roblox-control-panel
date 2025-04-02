@@ -1,0 +1,40 @@
+{
+    "name": "roblox-control-panel",
+    "version": "1.0.0",
+    "description": "Remote control panel for Roblox Account Manager",
+    "main": "server/server.js",
+    "scripts": {
+        "start": "node server/server.js",
+        "dev": "nodemon server/server.js",
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "client": "cd client && npm start",
+        "build": "cd client && npm run build",
+        "install-client": "cd client && npm install",
+        "heroku-postbuild": "npm run install-client && npm run build"
+    },
+    "keywords": [
+        "roblox",
+        "account-manager",
+        "remote-control",
+        "panel"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "canvas": "^3.1.0",
+        "cors": "^2.8.5",
+        "express": "^4.18.2",
+        "http-proxy-middleware": "^2.0.6",
+        "node-fetch": "^3.3.2",
+        "puppeteer": "^24.5.0",
+        "screenshot-desktop": "^1.15.1",
+        "user-agents": "^1.1.496",
+        "windows-screenshot": "^3.1.1"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1"
+    },
+    "engines": {
+        "node": ">=14.0.0"
+    }
+}
