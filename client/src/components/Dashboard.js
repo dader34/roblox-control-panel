@@ -467,7 +467,7 @@ end)`}
                             : data.money || '0'}
                         </td>
                         <td className="money-cell">
-                          {typeof data.bankMoney === 'number' 
+                          ${typeof data.bankMoney === 'number' 
                             ? data.bankMoney.toLocaleString() 
                             : data.bankMoney || '0'}
                         </td>
