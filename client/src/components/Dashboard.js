@@ -14,6 +14,7 @@ const Dashboard = () => {
   const [showServerBrowser, setShowServerBrowser] = useState(false);
   const [expandedDetails, setExpandedDetails] = useState(null); // Track which account has expanded details
   const [totalMoney, setTotalMoney] = useState(0); // Track total money across all accounts
+  const [totalBankMoney, setTotalBankMoney] = useState(0); // Track total bank money across all accounts
 
   useEffect(() => {
     const fetchData = async () => {
@@ -28,8 +29,8 @@ const Dashboard = () => {
         setProcesses(processesData);
         setGameData(gameDataResponse);
         
-        // Calculate total money
-        calculateTotalMoney(gameDataResponse);
+        // Calculate total money and bank money
+        calculateTotals(gameDataResponse);
         
         if (accountsData.length > 0) {
           setSelectedAccount(accountsData[0]);
@@ -54,8 +55,8 @@ const Dashboard = () => {
         setProcesses(processesData);
         setGameData(gameDataResponse);
         
-        // Update total money when game data refreshes
-        calculateTotalMoney(gameDataResponse);
+        // Update totals when game data refreshes
+        calculateTotals(gameDataResponse);
       } catch (error) {
         console.error('Error refreshing data:', error);
       }
@@ -64,25 +65,41 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Helper function to calculate total money across all accounts
-  const calculateTotalMoney = (data) => {
-    let total = 0;
+  // Helper function to calculate totals across all accounts
+  const calculateTotals = (data) => {
+    let moneyTotal = 0;
+    let bankMoneyTotal = 0;
     
     data.forEach(account => {
-      // Handle different money formats (numeric or string with currency symbols)
+      // Handle money (on hand)
       if (typeof account.money === 'number') {
-        total += account.money;
+        moneyTotal += account.money;
       } else if (typeof account.money === 'string') {
         // Remove currency symbols and commas, then parse as number
         const cleanedMoney = account.money.replace(/[$,£€]/g, '');
         const moneyValue = parseFloat(cleanedMoney);
         if (!isNaN(moneyValue)) {
-          total += moneyValue;
+          moneyTotal += moneyValue;
+        }
+      }
+      
+      // Handle bank money
+      if (account.bankMoney) {
+        if (typeof account.bankMoney === 'number') {
+          bankMoneyTotal += account.bankMoney;
+        } else if (typeof account.bankMoney === 'string') {
+          // Remove currency symbols and commas, then parse as number
+          const cleanedBankMoney = account.bankMoney.replace(/[$,£€]/g, '');
+          const bankMoneyValue = parseFloat(cleanedBankMoney);
+          if (!isNaN(bankMoneyValue)) {
+            bankMoneyTotal += bankMoneyValue;
+          }
         }
       }
     });
     
-    setTotalMoney(total);
+    setTotalMoney(moneyTotal);
+    setTotalBankMoney(bankMoneyTotal);
   };
 
   const handleLaunch = async (e) => {
@@ -163,7 +180,7 @@ const Dashboard = () => {
     try {
       const data = await getGameData();
       setGameData(data);
-      calculateTotalMoney(data);
+      calculateTotals(data);
     } catch (error) {
       console.error('Error refreshing game data:', error);
     }
@@ -198,6 +215,9 @@ const Dashboard = () => {
       setExpandedDetails(account); // Expand this account
     }
   };
+
+  // Calculate grand total (pocket + bank)
+  const grandTotal = totalMoney + totalBankMoney;
 
   if (loading && accounts.length === 0) {
     return <div className="dashboard">Loading dashboard data...</div>;
@@ -289,8 +309,21 @@ const Dashboard = () => {
             <pre className="lua-code">
 {`--Run this to monitor your players stats in block spin
 local player = game.Players.LocalPlayer 
+local bankMoneyLocation = nil
+local playerGui = game.Players.LocalPlayer.PlayerGui
+for i,v in pairs(playerGui:children()) do
+    local firstLetter = string.sub(v.Name,0,1)
+    if(tonumber(firstLetter)) then
+        bankMoneyLocation = v
+        break
+    end
+end
+
 
 function makeRequest()
+
+    local unformattedBankMoney = bankMoneyLocation:FindFirstChildOfClass('Frame'):FindFirstChildOfClass('Frame'):FindFirstChild('Options'):FindFirstChildOfClass('TextLabel').text
+    local bankMoney = string.sub(unformattedBankMoney,16)
 
     local otherData = {
         playerName = player.Name,
@@ -304,6 +337,7 @@ function makeRequest()
     local JSON = {
         accountName = player.Name,
         money = player.PlayerGui.TopRightHud.Holder.Frame.MoneyTextLabel.text,
+        bankMoney = bankMoney,
         placeId = game.PlaceId,
         otherData = otherData
     }
@@ -373,12 +407,38 @@ end)`}
           </div>
         ) : (
           <div>
-            {/* Total Money Display */}
-            <div className="total-money-container">
-              <div className="total-money-card">
-                <div className="total-money-label">Total Money:</div>
-                <div className="total-money-value">${formatMoney(totalMoney)}</div>
-                <div className="total-money-info">Combined from {gameData.length} active accounts</div>
+            {/* Money Stats Display */}
+            <div className="money-stats-container">
+              <div className="money-stats-grid">
+                {/* Pocket Money Card */}
+                <div className="money-stats-card">
+                  <div className="money-stats-icon pocket-icon">💰</div>
+                  <div className="money-stats-content">
+                    <div className="money-stats-label">Pocket Money</div>
+                    <div className="money-stats-value">${formatMoney(totalMoney)}</div>
+                  </div>
+                </div>
+                
+                {/* Bank Money Card */}
+                <div className="money-stats-card">
+                  <div className="money-stats-icon bank-icon">🏦</div>
+                  <div className="money-stats-content">
+                    <div className="money-stats-label">Bank Money</div>
+                    <div className="money-stats-value">${formatMoney(totalBankMoney)}</div>
+                  </div>
+                </div>
+                
+                {/* Total Money Card */}
+                <div className="money-stats-card total-card">
+                  <div className="money-stats-icon total-icon">💎</div>
+                  <div className="money-stats-content">
+                    <div className="money-stats-label">Grand Total</div>
+                    <div className="money-stats-value grand-total">${formatMoney(grandTotal)}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="money-stats-footer">
+                Combined from {gameData.length} active accounts
               </div>
             </div>
 
@@ -387,7 +447,8 @@ end)`}
                 <thead>
                   <tr>
                     <th>Account</th>
-                    <th>Money</th>
+                    <th>Pocket</th>
+                    <th>Bank</th>
                     <th>Level</th>
                     <th>Health</th>
                     <th>Place ID</th>
@@ -404,6 +465,11 @@ end)`}
                           {typeof data.money === 'number' 
                             ? data.money.toLocaleString() 
                             : data.money || '0'}
+                        </td>
+                        <td className="money-cell">
+                          {typeof data.bankMoney === 'number' 
+                            ? data.bankMoney.toLocaleString() 
+                            : data.bankMoney || '0'}
                         </td>
                         <td>
                           {data.otherData?.level || '0'}
@@ -437,7 +503,7 @@ end)`}
                       </tr>
                       {expandedDetails === data.account && data.otherData && (
                         <tr className="details-row">
-                          <td colSpan="7">
+                          <td colSpan="8">
                             <div className="player-detail-card">
                               <div className="player-stats">
                                 <div className="stat-row">

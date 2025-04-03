@@ -5,6 +5,9 @@ const cors = require('cors');
 const { exec } = require('child_process');
 const puppeteer = require('puppeteer'); // You'll need to install this with npm
 const UserAgent = require('user-agents'); // You'll need to install this with npm
+const WebSocket = require('ws');
+const { v4: uuidv4 } = require('uuid'); // You'll need to install this package
+
 
 // Configuration
 const config = require('./config');
@@ -27,6 +30,8 @@ app.use(express.static(path.join(__dirname, '../client/build')));
 const launchedProcesses = new Map();
 // Map PIDs to accounts for reverse lookup
 const processToAccount = new Map();
+// Store active WebSocket connections for each account
+const activeConnections = new Map();
 
 const http = require('http');
 
@@ -172,6 +177,210 @@ function terminateProcess(pid) {
     });
   });
 }
+
+// Set up WebSocket server
+function setupWebSocketServer(server) {
+  const wss = new WebSocket.Server({ server });
+  
+  wss.on('connection', (ws) => {
+    console.log('New WebSocket connection established');
+    let accountName = null;
+    let connectionId = uuidv4();
+    
+    // Handle incoming messages
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message);
+        
+        // Handle initialization message
+        if (data.type === 'init') {
+          accountName = data.accountName;
+          console.log(`WebSocket initialized for account: ${accountName}`);
+          
+          // Store the connection
+          if (!activeConnections.has(accountName)) {
+            activeConnections.set(accountName, new Map());
+          }
+          activeConnections.get(accountName).set(connectionId, ws);
+          
+          // Send acknowledgment
+          ws.send(JSON.stringify({
+            type: 'init_ack',
+            success: true,
+            message: 'Connection established'
+          }));
+          
+          // Update the launched process with WebSocket status
+          if (launchedProcesses.has(accountName)) {
+            const processInfo = launchedProcesses.get(accountName);
+            launchedProcesses.set(accountName, {
+              ...processInfo,
+              hasWebSocket: true,
+              lastPing: new Date()
+            });
+          }
+        }
+        // Handle execution results
+        else if (data.type === 'exec_result') {
+          console.log(`Execution result from ${accountName}:`, data.result);
+          
+          // You could store execution results here if needed
+          if (launchedProcesses.has(accountName)) {
+            const processInfo = launchedProcesses.get(accountName);
+            const execHistory = processInfo.execHistory || [];
+            
+            execHistory.push({
+              timestamp: new Date(),
+              script: data.script,
+              result: data.result,
+              success: data.success,
+              error: data.error
+            });
+            
+            // Keep only the last 20 executions
+            while (execHistory.length > 20) {
+              execHistory.shift();
+            }
+            
+            launchedProcesses.set(accountName, {
+              ...processInfo,
+              execHistory
+            });
+          }
+        }
+        // Handle ping/heartbeat
+        else if (data.type === 'ping') {
+          // Update last ping time
+          if (accountName && launchedProcesses.has(accountName)) {
+            const processInfo = launchedProcesses.get(accountName);
+            launchedProcesses.set(accountName, {
+              ...processInfo,
+              lastPing: new Date()
+            });
+          }
+          
+          // Send pong
+          ws.send(JSON.stringify({ type: 'pong' }));
+        }
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
+        ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Error processing message'
+        }));
+      }
+    });
+    
+    // Handle connection close
+    ws.on('close', () => {
+      console.log(`WebSocket connection closed${accountName ? ` for ${accountName}` : ''}`);
+      
+      if (accountName && activeConnections.has(accountName)) {
+        activeConnections.get(accountName).delete(connectionId);
+        
+        // If no more connections for this account, update process info
+        if (activeConnections.get(accountName).size === 0) {
+          if (launchedProcesses.has(accountName)) {
+            const processInfo = launchedProcesses.get(accountName);
+            launchedProcesses.set(accountName, {
+              ...processInfo,
+              hasWebSocket: false
+            });
+          }
+        }
+      }
+    });
+    
+    // Handle errors
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      
+      if (accountName && activeConnections.has(accountName)) {
+        activeConnections.get(accountName).delete(connectionId);
+      }
+    });
+  });
+  
+  console.log('WebSocket server initialized');
+  return wss;
+}
+// Add a new API endpoint to execute a script on a specific account
+app.post('/api/executeScript', (req, res) => {
+  const { accountName, script } = req.body;
+  
+  if (!accountName || !script) {
+    return res.status(400).json({
+      success: false,
+      message: 'Account name and script are required'
+    });
+  }
+  
+  // Check if account has an active WebSocket connection
+  if (!activeConnections.has(accountName) || activeConnections.get(accountName).size === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'No active WebSocket connection for this account'
+    });
+  }
+  
+  try {
+    // Get the first connection for this account
+    const ws = Array.from(activeConnections.get(accountName).values())[0];
+    
+    // Generate a unique execution ID
+    const execId = uuidv4();
+    
+    // Send execution request
+    ws.send(JSON.stringify({
+      type: 'execute',
+      execId,
+      script
+    }));
+    
+    // Log the execution request
+    console.log(`Script execution requested for ${accountName}:`, script);
+    
+    // Return success
+    res.json({
+      success: true,
+      message: 'Script execution requested',
+      execId
+    });
+  } catch (error) {
+    console.error(`Error executing script for ${accountName}:`, error);
+    res.status(500).json({
+      success: false,
+      message: 'Error executing script'
+    });
+  }
+});
+
+// Add a new API endpoint to get execution history for an account
+app.get('/api/executionHistory/:accountName', (req, res) => {
+  const { accountName } = req.params;
+  
+  if (!accountName) {
+    return res.status(400).json({
+      success: false,
+      message: 'Account name is required'
+    });
+  }
+  
+  if (!launchedProcesses.has(accountName)) {
+    return res.status(404).json({
+      success: false,
+      message: 'Account not found'
+    });
+  }
+  
+  const processInfo = launchedProcesses.get(accountName);
+  const execHistory = processInfo.execHistory || [];
+  
+  res.json({
+    success: true,
+    history: execHistory
+  });
+});
 
 // Add this endpoint for getting multiple different server IDs
 app.get('/api/multipleDifferentJobIds', async (req, res) => {
@@ -639,9 +848,9 @@ app.post('/api/leaveGame', (req, res) => {
 
 // Endpoint to receive game data from Roblox
 app.post('/api/gameData', (req, res) => {
-  const { accountName, money, placeId, otherData } = req.body;
+  const { accountName, money, bankMoney, placeId, otherData } = req.body;
   
-  console.log(`Received game data from ${accountName}: Money=${money}, PlaceId=${placeId}`);
+  console.log(`Received game data from ${accountName}: Money=${money}, Bank=${bankMoney}, PlaceId=${placeId}`);
   
   // Store this data with the account
   if (accountName) {
@@ -651,6 +860,7 @@ app.post('/api/gameData', (req, res) => {
       launchedProcesses.set(accountName, {
         ...info,
         money,
+        bankMoney, // Add the bank money field
         lastUpdate: new Date(),
         otherData
       });
@@ -660,6 +870,7 @@ app.post('/api/gameData', (req, res) => {
         account: accountName,
         placeId,
         money,
+        bankMoney, // Add the bank money field
         lastUpdate: new Date(),
         status: 'running',
         otherData
@@ -685,6 +896,7 @@ app.get('/api/gameData', (req, res) => {
     .map(([account, data]) => ({
       account,
       money: data.money !== undefined ? data.money : 0,
+      bankMoney: data.bankMoney !== undefined ? data.bankMoney : 0, // Include bank money in response
       placeId: data.placeId || '',
       lastUpdate: data.lastUpdate || null,
       pid: data.pid || null,
@@ -738,191 +950,6 @@ async function importAccountToRAM(username, password) {
   return response;
 }
 
-const fs = require('fs').promises;
-
-const proxies = [
-  // You'll need to add your own reliable proxies here
-  // These are just examples and will likely not work
-  { host: '43.153.103.42', port: 13001, protocol: 'http' },
-  { host: '201.174.175.179', port: 999, protocol: 'http' },
-  { host: '103.245.205.226', port: 6969, protocol: 'http' },
-  { host: '5.253.142.114', port: 1453, protocol: 'http' },
-  { host: '91.107.186.37', port: 80, protocol: 'http' },
-  { host: '139.9.116.150', port: 8520, protocol: 'http' },
-];
-
-// Helper function to get a random proxy from the list
-function getRandomProxy() {
-  if (proxies.length === 0) return null;
-  return proxies[Math.floor(Math.random() * proxies.length)];
-}
-
-app.post('/api/createAccount', async (req, res) => {
-  const { 
-    username, 
-    password, 
-    gender = 'Male', 
-    birthYear = 2000, 
-    birthMonth = 1, 
-    birthDay = 1, 
-    useProxy = true 
-  } = req.body;
-  
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password are required' });
-  }
-  
-  let browser = null;
-  
-  try {
-    console.log(`Starting account creation process for ${username}...`);
-    
-    // Get a random proxy if proxy usage is enabled
-    let proxy = null;
-    if (useProxy) {
-      proxy = getRandomProxy();
-      if (!proxy) {
-        console.warn('No proxies available, proceeding without proxy');
-      } else {
-        console.log(`Using proxy: ${proxy.host}:${proxy.port}`);
-      }
-    }
-    
-    // Generate a random user-agent
-    const userAgent = new UserAgent();
-    
-    // Configure Puppeteer with proxy if available
-    const puppeteerOptions = {
-      headless: true, // Set to false for debugging
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-web-security',
-        '--disable-features=site-per-process'
-      ]
-    };
-    
-    // Add proxy if available
-    if (proxy) {
-      puppeteerOptions.args.push(`--proxy-server=${proxy.protocol}://${proxy.host}:${proxy.port}`);
-    }
-    
-    // Launch browser
-    browser = await puppeteer.launch(puppeteerOptions);
-    const page = await browser.newPage();
-    
-    // Set user-agent and viewport
-    await page.setUserAgent(userAgent.toString());
-    await page.setViewport({ width: 1366, height: 768 });
-    
-    // Navigate to the signup page
-    await page.goto('https://www.roblox.com/signup', { waitUntil: 'networkidle2' });
-    
-    // Check for cloudflare protection or captcha
-    if (await page.title().then(title => title.includes('Cloudflare') || title.includes('Security'))) {
-      await browser.close();
-      browser = null;
-      return res.status(429).json({ error: 'Cloudflare protection detected. Try again later or use a different proxy.' });
-    }
-    
-    // Fill in the signup form
-    await page.type('#signup-username', username);
-    await page.type('#signup-password', password);
-    
-    // Set gender
-    if (gender === 'Male') {
-      await page.click('#MaleButton');
-    } else {
-      await page.click('#FemaleButton');
-    }
-    
-    // Set birth date (Note: selectors may change based on Roblox's website structure)
-    await page.select('#birthMonth', birthMonth.toString());
-    await page.select('#birthDay', birthDay.toString());
-    await page.select('#birthYear', birthYear.toString());
-    
-    // Submit the form and wait for navigation
-    await Promise.all([
-      page.click('#signup-button'),
-      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 })
-    ]);
-    
-    // Check if registration was successful
-    const currentUrl = page.url();
-    if (currentUrl.includes('home') || currentUrl.includes('discover')) {
-      console.log(`Successfully created account: ${username}`);
-      console.log(`Account credentials: ${username}:${password}`);
-      
-      // Ensure the users directory exists
-      const usersDir = path.join(__dirname, 'users');
-      try {
-        await fs.mkdir(usersDir, { recursive: true });
-      } catch (mkdirErr) {
-        console.error('Error creating users directory:', mkdirErr);
-      }
-      
-      // Write user:pass to a file in the users folder
-      const accountInfo = `${username}:${password}`;
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = path.join(usersDir, `account_${timestamp}.txt`);
-      
-      try {
-        await fs.writeFile(filename, accountInfo);
-        console.log(`Account credentials saved to ${filename}`);
-        
-        // Also append to a combined file
-        const combinedFile = path.join(usersDir, 'all_accounts.txt');
-        await fs.appendFile(combinedFile, accountInfo + '\n');
-        
-        await browser.close();
-        browser = null;
-        
-        return res.status(200).json({
-          success: true,
-          message: 'Account created and saved to file'
-        });
-      } catch (fileError) {
-        console.error('Error saving account info to file:', fileError);
-        
-        await browser.close();
-        browser = null;
-        
-        return res.status(200).json({
-          success: true,
-          message: 'Account created but failed to save to file'
-        });
-      }
-    } else {
-      // Check for error messages
-      const errorMessage = await page.evaluate(() => {
-        const errorElement = document.querySelector('.form-group .validation-summary-errors');
-        return errorElement ? errorElement.textContent.trim() : 'Unknown error occurred';
-      });
-      
-      console.error(`Failed to create account ${username}: ${errorMessage}`);
-      
-      await browser.close();
-      browser = null;
-      
-      return res.status(400).json({
-        error: errorMessage || 'Failed to create account'
-      });
-    }
-  } catch (error) {
-    console.error(`Error creating account ${username}:`, error);
-    
-    if (browser) {
-      await browser.close();
-    }
-    
-    return res.status(500).json({
-      error: 'Internal server error occurred while creating account'
-    });
-  }
-});
-
-
-
 // Proxy middleware configuration
 const ramProxyOptions = {
   target: `http://${config.RAM_API.HOST}:${config.RAM_API.PORT}`,
@@ -960,10 +987,12 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/build/index.html'));
 });
 
-// Start the server
 const server = app.listen(config.PORT, () => {
   console.log(`Server running on port ${config.PORT}`);
   console.log(`Proxying requests to Roblox Account Manager at ${config.RAM_API.HOST}:${config.RAM_API.PORT}`);
+  
+  // Initialize WebSocket server
+  const wss = setupWebSocketServer(server);
 });
 
 // Graceful shutdown

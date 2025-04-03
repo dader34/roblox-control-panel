@@ -1265,3 +1265,97 @@ input[type="checkbox"]:focus, input[type="radio"]:focus {
     font-size: 2rem;
   }
 }
+
+/* Add these styles to your existing CSS */
+
+.money-stats-container {
+  margin-bottom: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.money-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 15px;
+}
+
+.money-stats-card {
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 15px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.money-stats-icon {
+  font-size: 2rem;
+  margin-right: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+}
+
+.pocket-icon {
+  background-color: #e8f5e9;
+  color: #28a745;
+}
+
+.bank-icon {
+  background-color: #e3f2fd;
+  color: #0d6efd;
+}
+
+.total-icon {
+  background-color: #f3e5f5;
+  color: #6f42c1;
+}
+
+.money-stats-content {
+  flex: 1;
+}
+
+.money-stats-label {
+  font-size: 0.85rem;
+  color: #6c757d;
+  margin-bottom: 4px;
+}
+
+.money-stats-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #212529;
+}
+
+.grand-total {
+  color: #6f42c1;
+  font-size: 1.8rem;
+}
+
+.total-card {
+  background-color: #f8f9fa;
+  border: 1px solid #ddd;
+}
+
+.money-stats-footer {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+
+/* Make the cards display in a row on larger screens */
+@media (min-width: 768px) {
+  .money-stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+  }
+}
