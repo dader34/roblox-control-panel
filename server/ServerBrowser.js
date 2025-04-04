@@ -4,16 +4,519 @@ const { URL } = require('url');
 
 // List of free proxies (you should replace these with your actual proxies)
 // Format: { host: 'proxy.example.com', port: 8080, protocol: 'http' }
+//  = [
+//   // You'll need to add your own reliable proxies here
+//   // These are just examples and will likely not work
+//   { host: '43.153.103.42', port: 13001, protocol: 'http' },
+//   { host: '201.174.175.179', port: 999, protocol: 'http' },
+//   { host: '103.245.205.226', port: 6969, protocol: 'http' },
+//   { host: '5.253.142.114', port: 1453, protocol: 'http' },
+//   { host: '91.107.186.37', port: 80, protocol: 'http' },
+//   { host: '139.9.116.150', port: 8520, protocol: 'http' },
+// ];
+
 const proxies = [
-  // You'll need to add your own reliable proxies here
-  // These are just examples and will likely not work
-  { host: '43.153.103.42', port: 13001, protocol: 'http' },
-  { host: '201.174.175.179', port: 999, protocol: 'http' },
-  { host: '103.245.205.226', port: 6969, protocol: 'http' },
-  { host: '5.253.142.114', port: 1453, protocol: 'http' },
-  { host: '91.107.186.37', port: 80, protocol: 'http' },
-  { host: '139.9.116.150', port: 8520, protocol: 'http' },
-];
+  {
+      host: "157.15.82.184",
+      port: "2134",
+      protocol: "http"
+  },
+  {
+      host: "47.123.4.107",
+      port: "9100",
+      protocol: "http"
+  },
+  {
+      host: "117.2.236.253",
+      port: "5401",
+      protocol: "http"
+  },
+  {
+      host: "170.80.78.217",
+      port: "8088",
+      protocol: "http"
+  },
+  {
+      host: "43.153.14.194",
+      port: "13001",
+      protocol: "http"
+  },
+  {
+      host: "201.186.41.98",
+      port: "999",
+      protocol: "http"
+  },
+  {
+      host: "43.153.11.118",
+      port: "13001",
+      protocol: "http"
+  },
+  {
+      host: "106.225.164.39",
+      port: "655",
+      protocol: "http"
+  },
+  {
+      host: "162.223.90.130",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "49.4.117.146",
+      port: "3128",
+      protocol: "http"
+  },
+  {
+      host: "38.152.72.220",
+      port: "2335",
+      protocol: "http"
+  },
+  {
+      host: "35.209.198.222",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "69.49.228.101",
+      port: "3128",
+      protocol: "http"
+  },
+  {
+      host: "94.249.220.135",
+      port: "49200",
+      protocol: "http"
+  },
+  {
+      host: "160.20.165.229",
+      port: "8587",
+      protocol: "http"
+  },
+  {
+      host: "45.249.77.145",
+      port: "83",
+      protocol: "http"
+  },
+  {
+      host: "160.25.48.33",
+      port: "9090",
+      protocol: "http"
+  },
+  {
+      host: "62.213.23.99",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "180.94.80.18",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "165.16.58.124",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "103.243.177.129",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "47.251.122.81",
+      port: "8888",
+      protocol: "http"
+  },
+  {
+      host: "111.72.193.66",
+      port: "2324",
+      protocol: "http"
+  },
+  {
+      host: "116.105.23.20",
+      port: "10001",
+      protocol: "http"
+  },
+  {
+      host: "44.215.100.135",
+      port: "8118",
+      protocol: "http"
+  },
+  {
+      host: "38.54.9.151",
+      port: "3128",
+      protocol: "http"
+  },
+  {
+      host: "190.85.141.170",
+      port: "9090",
+      protocol: "http"
+  },
+  {
+      host: "186.215.43.224",
+      port: "3128",
+      protocol: "http"
+  },
+  {
+      host: "193.30.13.231",
+      port: "999",
+      protocol: "http"
+  },
+  {
+      host: "193.38.224.169",
+      port: "8081",
+      protocol: "http"
+  },
+  {
+      host: "80.80.163.194",
+      port: "46276",
+      protocol: "http"
+  },
+  {
+      host: "43.153.103.58",
+      port: "13001",
+      protocol: "http"
+  },
+  {
+      host: "120.28.168.252",
+      port: "5050",
+      protocol: "http"
+  },
+  {
+      host: "27.79.248.34",
+      port: "16000",
+      protocol: "http"
+  },
+  {
+      host: "103.24.215.126",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "125.87.85.199",
+      port: "2324",
+      protocol: "http"
+  },
+  {
+      host: "222.74.73.202",
+      port: "42055",
+      protocol: "http"
+  },
+  {
+      host: "45.166.93.29",
+      port: "999",
+      protocol: "http"
+  },
+  {
+      host: "27.189.130.121",
+      port: "8089",
+      protocol: "http"
+  },
+  {
+      host: "116.169.61.56",
+      port: "10990",
+      protocol: "http"
+  },
+  {
+      host: "36.50.112.145",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "23.82.137.159",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "34.122.187.196",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "36.93.73.154",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "59.53.80.122",
+      port: "10024",
+      protocol: "http"
+  },
+  {
+      host: "157.10.97.107",
+      port: "8383",
+      protocol: "http"
+  },
+  {
+      host: "43.153.92.75",
+      port: "13001",
+      protocol: "http"
+  },
+  {
+      host: "103.59.213.29",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "145.239.196.123",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "126.209.9.30",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "206.189.140.195",
+      port: "3128",
+      protocol: "http"
+  },
+  {
+      host: "98.64.128.182",
+      port: "3128",
+      protocol: "http"
+  },
+  {
+      host: "47.238.225.138",
+      port: "9000",
+      protocol: "http"
+  },
+  {
+      host: "118.70.13.38",
+      port: "41857",
+      protocol: "http"
+  },
+  {
+      host: "49.146.197.234",
+      port: "8082",
+      protocol: "http"
+  },
+  {
+      host: "81.169.213.169",
+      port: "8888",
+      protocol: "http"
+  },
+  {
+      host: "14.204.5.187",
+      port: "8085",
+      protocol: "http"
+  },
+  {
+      host: "112.201.183.19",
+      port: "8085",
+      protocol: "http"
+  },
+  {
+      host: "119.3.113.151",
+      port: "9094",
+      protocol: "http"
+  },
+  {
+      host: "120.28.168.238",
+      port: "5050",
+      protocol: "http"
+  },
+  {
+      host: "43.153.2.82",
+      port: "13001",
+      protocol: "http"
+  },
+  {
+      host: "37.211.38.208",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "121.232.178.25",
+      port: "8089",
+      protocol: "http"
+  },
+  {
+      host: "213.239.221.24",
+      port: "8888",
+      protocol: "http"
+  },
+  {
+      host: "112.198.239.81",
+      port: "8082",
+      protocol: "http"
+  },
+  {
+      host: "200.10.30.129",
+      port: "999",
+      protocol: "http"
+  },
+  {
+      host: "171.237.122.135",
+      port: "1001",
+      protocol: "http"
+  },
+  {
+      host: "80.249.112.166",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "49.146.204.232",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "45.233.169.9",
+      port: "999",
+      protocol: "http"
+  },
+  {
+      host: "193.124.225.217",
+      port: "3128",
+      protocol: "http"
+  },
+  {
+      host: "103.242.105.177",
+      port: "8181",
+      protocol: "http"
+  },
+  {
+      host: "190.94.213.4",
+      port: "999",
+      protocol: "http"
+  },
+  {
+      host: "43.153.103.42",
+      port: "13001",
+      protocol: "http"
+  },
+  {
+      host: "202.154.18.168",
+      port: "8088",
+      protocol: "http"
+  },
+  {
+      host: "138.68.60.8",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "103.132.52.117",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "202.165.47.90",
+      port: "55443",
+      protocol: "http"
+  },
+  {
+      host: "43.153.69.25",
+      port: "13001",
+      protocol: "http"
+  },
+  {
+      host: "190.60.44.234",
+      port: "999",
+      protocol: "http"
+  },
+  {
+      host: "114.219.174.47",
+      port: "8089",
+      protocol: "http"
+  },
+  {
+      host: "152.228.154.20",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "93.127.163.52",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "31.44.91.218",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "110.76.145.22",
+      port: "92",
+      protocol: "http"
+  },
+  {
+      host: "47.56.110.204",
+      port: "8989",
+      protocol: "http"
+  },
+  {
+      host: "77.239.115.23",
+      port: "3128",
+      protocol: "http"
+  },
+  {
+      host: "43.153.32.146",
+      port: "13001",
+      protocol: "http"
+  },
+  {
+      host: "193.123.244.193",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "36.136.27.2",
+      port: "4999",
+      protocol: "http"
+  },
+  {
+      host: "179.48.251.190",
+      port: "8081",
+      protocol: "http"
+  },
+  {
+      host: "2.179.193.146",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "14.143.130.210",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "51.158.105.94",
+      port: "31826",
+      protocol: "http"
+  },
+  {
+      host: "190.108.95.104",
+      port: "999",
+      protocol: "http"
+  },
+  {
+      host: "221.121.149.35",
+      port: "8080",
+      protocol: "http"
+  },
+  {
+      host: "121.229.203.61",
+      port: "8088",
+      protocol: "http"
+  },
+  {
+      host: "106.38.26.22",
+      port: "2080",
+      protocol: "http"
+  },
+  {
+      host: "23.82.137.161",
+      port: "80",
+      protocol: "http"
+  },
+  {
+      host: "190.95.132.189",
+      port: "999",
+      protocol: "http"
+  }
+]
 
 // Helper function to get a random proxy from the list
 function getRandomProxy() {

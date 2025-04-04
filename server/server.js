@@ -179,13 +179,41 @@ function terminateProcess(pid) {
 }
 
 // Set up WebSocket server
+// Update the WebSocket server implementation
 function setupWebSocketServer(server) {
   const wss = new WebSocket.Server({ server });
+  
+  // Heartbeat mechanism to detect broken connections
+  function heartbeat() {
+    this.isAlive = true;
+  }
+  
+  // Ping all clients regularly
+  const pingInterval = setInterval(() => {
+    wss.clients.forEach(ws => {
+      if (ws.isAlive === false) {
+        console.log(`Terminating inactive WebSocket connection for ${ws.accountName || 'unknown'}`);
+        return ws.terminate();
+      }
+      
+      ws.isAlive = false;
+      ws.ping(() => {});
+    });
+  }, 30000);
+  
+  // Clear interval when server closes
+  wss.on('close', () => {
+    clearInterval(pingInterval);
+  });
   
   wss.on('connection', (ws) => {
     console.log('New WebSocket connection established');
     let accountName = null;
     let connectionId = uuidv4();
+    
+    // Set up heartbeat
+    ws.isAlive = true;
+    ws.on('pong', heartbeat);
     
     // Handle incoming messages
     ws.on('message', (message) => {
@@ -195,13 +223,20 @@ function setupWebSocketServer(server) {
         // Handle initialization message
         if (data.type === 'init') {
           accountName = data.accountName;
+          ws.accountName = accountName; // Store account name on the socket for reference
+          
           console.log(`WebSocket initialized for account: ${accountName}`);
           
-          // Store the connection
+          // Create connection map if it doesn't exist
           if (!activeConnections.has(accountName)) {
             activeConnections.set(accountName, new Map());
+            console.log(`Created new connection map for ${accountName}`);
           }
+          
+          // Store the connection
           activeConnections.get(accountName).set(connectionId, ws);
+          console.log(`Stored connection for ${accountName}, ID: ${connectionId}`);
+          console.log(`Active connections for ${accountName}: ${activeConnections.get(accountName).size}`);
           
           // Send acknowledgment
           ws.send(JSON.stringify({
@@ -218,13 +253,21 @@ function setupWebSocketServer(server) {
               hasWebSocket: true,
               lastPing: new Date()
             });
+          } else {
+            // Create a minimal entry if none exists
+            launchedProcesses.set(accountName, {
+              account: accountName,
+              hasWebSocket: true,
+              lastPing: new Date(),
+              status: 'unknown'
+            });
+            console.log(`Created minimal launchedProcess entry for ${accountName}`);
           }
         }
         // Handle execution results
         else if (data.type === 'exec_result') {
           console.log(`Execution result from ${accountName}:`, data.result);
           
-          // You could store execution results here if needed
           if (launchedProcesses.has(accountName)) {
             const processInfo = launchedProcesses.get(accountName);
             const execHistory = processInfo.execHistory || [];
@@ -250,13 +293,26 @@ function setupWebSocketServer(server) {
         }
         // Handle ping/heartbeat
         else if (data.type === 'ping') {
-          // Update last ping time
-          if (accountName && launchedProcesses.has(accountName)) {
-            const processInfo = launchedProcesses.get(accountName);
-            launchedProcesses.set(accountName, {
-              ...processInfo,
-              lastPing: new Date()
-            });
+          // Update last ping time and refresh the connection
+          if (accountName) {
+            // Ensure we have connection map
+            if (!activeConnections.has(accountName)) {
+              activeConnections.set(accountName, new Map());
+              console.log(`Created connection map for ${accountName} from ping`);
+            }
+            
+            // Update the connection
+            activeConnections.get(accountName).set(connectionId, ws);
+            
+            // Update process info
+            if (launchedProcesses.has(accountName)) {
+              const processInfo = launchedProcesses.get(accountName);
+              launchedProcesses.set(accountName, {
+                ...processInfo,
+                hasWebSocket: true,
+                lastPing: new Date()
+              });
+            }
           }
           
           // Send pong
@@ -277,6 +333,8 @@ function setupWebSocketServer(server) {
       
       if (accountName && activeConnections.has(accountName)) {
         activeConnections.get(accountName).delete(connectionId);
+        console.log(`Removed connection ${connectionId} for ${accountName}`);
+        console.log(`Remaining connections: ${activeConnections.get(accountName).size}`);
         
         // If no more connections for this account, update process info
         if (activeConnections.get(accountName).size === 0) {
@@ -286,6 +344,7 @@ function setupWebSocketServer(server) {
               ...processInfo,
               hasWebSocket: false
             });
+            console.log(`Marked ${accountName} as having no WebSocket`);
           }
         }
       }
@@ -297,6 +356,7 @@ function setupWebSocketServer(server) {
       
       if (accountName && activeConnections.has(accountName)) {
         activeConnections.get(accountName).delete(connectionId);
+        console.log(`Removed connection ${connectionId} for ${accountName} due to error`);
       }
     });
   });
@@ -304,7 +364,7 @@ function setupWebSocketServer(server) {
   console.log('WebSocket server initialized');
   return wss;
 }
-// Add a new API endpoint to execute a script on a specific account
+// Update the executeScript endpoint with better error handling
 app.post('/api/executeScript', (req, res) => {
   const { accountName, script } = req.body;
   
@@ -315,8 +375,76 @@ app.post('/api/executeScript', (req, res) => {
     });
   }
   
-  // Check if account has an active WebSocket connection
-  if (!activeConnections.has(accountName) || activeConnections.get(accountName).size === 0) {
+  console.log(`Execution request for ${accountName}`);
+  console.log(`Active connections map has ${activeConnections.size} accounts`);
+  
+  if (accountName === 'all_accounts') {
+    // Special case for executing on all accounts
+    const results = {
+      success: true,
+      totalAccounts: 0,
+      successfulAccounts: 0,
+      failedAccounts: 0,
+      message: 'Execution started on multiple accounts',
+      execId: uuidv4()
+    };
+    
+    // Execute on all accounts with active connections
+    let executionPromises = [];
+
+    function sleep(ms) {
+      return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+      });
+    }
+
+    for (const [account, connections] of activeConnections.entries()) {
+      if (connections.size > 0) {
+        results.totalAccounts++;
+        
+        // Get first connection for this account
+        const ws = Array.from(connections.values())[0];
+        
+        try {
+          // Generate unique ID for this execution
+          const execId = uuidv4();
+          
+          // Send execution request
+          ws.send(JSON.stringify({
+            type: 'execute',
+            execId,
+            script
+          }));
+          
+          results.successfulAccounts++;
+          console.log(`Sent script to ${account} (${execId})`);
+          sleep(1000)
+        } catch (error) {
+          results.failedAccounts++;
+          console.error(`Failed to send script to ${account}:`, error);
+        }
+      }
+    }
+    
+    // Return results
+    return res.json({
+      ...results,
+      message: `Execution started on ${results.successfulAccounts}/${results.totalAccounts} accounts`
+    });
+  }
+  
+  // Normal execution on a single account
+  if (!activeConnections.has(accountName)) {
+    console.log(`No connections found for ${accountName}`);
+    return res.status(404).json({
+      success: false,
+      message: 'No active WebSocket connection for this account'
+    });
+  }
+  
+  const connections = activeConnections.get(accountName);
+  if (connections.size === 0) {
+    console.log(`Connections map exists for ${accountName} but is empty`);
     return res.status(404).json({
       success: false,
       message: 'No active WebSocket connection for this account'
@@ -325,7 +453,7 @@ app.post('/api/executeScript', (req, res) => {
   
   try {
     // Get the first connection for this account
-    const ws = Array.from(activeConnections.get(accountName).values())[0];
+    const ws = Array.from(connections.values())[0];
     
     // Generate a unique execution ID
     const execId = uuidv4();
@@ -338,7 +466,7 @@ app.post('/api/executeScript', (req, res) => {
     }));
     
     // Log the execution request
-    console.log(`Script execution requested for ${accountName}:`, script);
+    console.log(`Script execution requested for ${accountName} (ID: ${execId})`);
     
     // Return success
     res.json({
@@ -848,19 +976,26 @@ app.post('/api/leaveGame', (req, res) => {
 
 // Endpoint to receive game data from Roblox
 app.post('/api/gameData', (req, res) => {
-  const { accountName, money, bankMoney, placeId, otherData } = req.body;
+  const { accountName, money, bankMoney, placeId, otherData, hasWebSocket } = req.body;
   
-  console.log(`Received game data from ${accountName}: Money=${money}, Bank=${bankMoney}, PlaceId=${placeId}`);
+  console.log(`Received game data from ${accountName}: Money=${money}, Bank=${bankMoney}, PlaceId=${placeId}, WebSocket=${hasWebSocket}`);
   
   // Store this data with the account
   if (accountName) {
+    // Create placeholder for connections if needed
+    if (hasWebSocket && !activeConnections.has(accountName)) {
+      activeConnections.set(accountName, new Map());
+      console.log(`Created new activeConnections entry for ${accountName}`);
+    }
+    
     // If we have a launched process for this account, update it
     if (launchedProcesses.has(accountName)) {
       const info = launchedProcesses.get(accountName);
       launchedProcesses.set(accountName, {
         ...info,
         money,
-        bankMoney, // Add the bank money field
+        bankMoney,
+        hasWebSocket: hasWebSocket || false,
         lastUpdate: new Date(),
         otherData
       });
@@ -870,7 +1005,8 @@ app.post('/api/gameData', (req, res) => {
         account: accountName,
         placeId,
         money,
-        bankMoney, // Add the bank money field
+        bankMoney,
+        hasWebSocket: hasWebSocket || false,
         lastUpdate: new Date(),
         status: 'running',
         otherData
@@ -898,6 +1034,7 @@ app.get('/api/gameData', (req, res) => {
       money: data.money !== undefined ? data.money : 0,
       bankMoney: data.bankMoney !== undefined ? data.bankMoney : 0, // Include bank money in response
       placeId: data.placeId || '',
+      hasWebSocket: data.hasWebSocket,
       lastUpdate: data.lastUpdate || null,
       pid: data.pid || null,
       status: data.status || 'unknown',

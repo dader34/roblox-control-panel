@@ -15,6 +15,7 @@ const Dashboard = () => {
   const [expandedDetails, setExpandedDetails] = useState(null); // Track which account has expanded details
   const [totalMoney, setTotalMoney] = useState(0); // Track total money across all accounts
   const [totalBankMoney, setTotalBankMoney] = useState(0); // Track total bank money across all accounts
+  const [showMonitoringScript, setShowMonitoringScript] = useState(true); // Control script visibility
 
   useEffect(() => {
     const fetchData = async () => {
@@ -219,6 +220,371 @@ const Dashboard = () => {
   // Calculate grand total (pocket + bank)
   const grandTotal = totalMoney + totalBankMoney;
 
+  // The monitoring script content
+  const monitoringScript = `
+-- Put this in your autoexecute
+-- Roblox Player Monitoring and Remote Script Execution
+-- This script monitors player stats and enables remote script execution via WebSocket
+
+wait(10)
+print('Starting load')
+
+-- Initialize variables
+local player = game.Players.LocalPlayer
+local playerGui = player.PlayerGui
+local HttpService = game:GetService("HttpService")
+local serverUrl = "http://localhost:3000"
+local wsUrl = "ws://localhost:3000"
+
+-- Configuration
+local PING_INTERVAL = 30 -- seconds
+local HEALTH_CHANGE_THRESHOLD = 0.01 -- 1% of max health
+local MAX_RECONNECT_ATTEMPTS = 10
+local RECONNECT_DELAY = 5 -- seconds
+local UPDATE_INTERVAL = 10 -- seconds
+
+-- State tracking
+local bankMoneyLocation = nil
+local lastHealth = 0
+local ws = nil
+local connected = false
+local reconnectAttempts = 0
+local lastPingTime = 0
+
+-- Find the bank money UI element (specific to Block Spin)
+local function findBankMoneyLocation()
+    for _, v in pairs(playerGui:GetChildren()) do
+        local firstLetter = string.sub(v.Name, 0, 1)
+        if tonumber(firstLetter) then
+            print("Found bank money location: " .. v.Name)
+            return v
+        end
+    end
+    warn("Could not find bank money location")
+    return nil
+end
+
+-- Extract player stats
+local function getPlayerStats()
+    -- Get health data
+    local health = 0
+    local maxHealth = 0
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        health = player.Character.Humanoid.Health
+        maxHealth = player.Character.Humanoid.MaxHealth
+    end
+    
+    -- Get level data
+    local level = "0"
+    pcall(function()
+        level = player.PlayerGui.LevelUp.Frame.LevelCardHolder.LevelCard.TextLabel.text
+    end)
+    
+    -- Get position
+    local position = "0, 0, 0"
+    pcall(function()
+        position = tostring(player.Character and player.Character:GetPrimaryPartCFrame().Position or Vector3.new(0,0,0))
+    end)
+    
+    return {
+        playerName = player.Name,
+        displayName = player.DisplayName,
+        position = position,
+        health = health,
+        maxHealth = maxHealth,
+        level = level
+    }
+end
+
+-- Get bank money amount
+local function getBankMoney()
+    if not bankMoneyLocation then 
+        print('Not found')
+        return "0" 
+    end
+    
+    local bankMoney = "0"
+    pcall(function()
+        local unformattedBankMoney = bankMoneyLocation:FindFirstChildOfClass('Frame')
+            :FindFirstChildOfClass('Frame')
+            :FindFirstChild('Options')
+            :FindFirstChildOfClass('TextLabel').text
+        bankMoney = string.sub(unformattedBankMoney, 16)
+    end)
+    print(bankMoney)
+    return bankMoney
+end
+
+print(player.Name)
+
+-- Get pocket money amount
+local function getPocketMoney()
+    local money = "0"
+    pcall(function()
+        money = player.PlayerGui.TopRightHud.Holder.Frame.MoneyTextLabel.text
+    end)
+    return money
+end
+
+-- Send game data to server
+function sendGameData(isReconnect)
+    local otherData = getPlayerStats()
+    
+    local data = {
+        accountName = player.Name,
+        money = getPocketMoney(),
+        bankMoney = getBankMoney(),
+        placeId = game.PlaceId,
+        otherData = otherData,
+        hasWebSocket = connected -- Always send current WebSocket status
+    }
+
+    print(data.bankMoney)
+    
+    -- Create and send HTTP request
+    local encodedData = HttpService:JSONEncode(data)
+    local request = {
+        Url = serverUrl .. '/api/gameData',
+        Method = 'POST',
+        Headers = {['Content-Type'] = 'application/json'},
+        Body = encodedData
+    }
+    
+    pcall(function()
+        http_request(request)
+        
+        if isReconnect then
+            print("Sent game data after reconnection with WebSocket status: " .. tostring(connected))
+        end
+    end)
+    
+    -- Update last health
+    lastHealth = otherData.health
+end
+
+-- Send leave notification to server
+local function sendLeaveNotification()
+    local leaveData = {
+        accountName = player.Name
+    }
+    
+    local encodedData = HttpService:JSONEncode(leaveData)
+    local request = {
+        Url = serverUrl .. '/api/leaveGame',
+        Method = 'POST',
+        Headers = {['Content-Type'] = 'application/json'},
+        Body = encodedData
+    }
+    
+    pcall(function()
+        http_request(request)
+    end)
+end
+
+-- WebSocket Functions
+local function setupWebSocket()
+    if not WebSocket then
+        warn("WebSocket is not available in this Roblox environment")
+        return false
+    end
+    
+    local success = pcall(function()
+        -- Connect to WebSocket server
+        ws = WebSocket.connect(wsUrl)
+        
+        -- Handle received messages
+        ws.OnMessage:Connect(function(message)
+            local success, data = pcall(function()
+                return HttpService:JSONDecode(message)
+            end)
+            
+            if not success then
+                warn("Failed to decode WebSocket message")
+                return
+            end
+            
+            -- Handle message types
+            if data.type == "init_ack" then
+                print("WebSocket connection initialized and acknowledged by server")
+                connected = true
+                reconnectAttempts = 0
+                
+                -- Immediately send a game data update to ensure server has latest info
+                sendGameData(true) -- Pass true to indicate this is after reconnection
+                
+            elseif data.type == "execute" then
+                print("Executing script: " .. data.execId)
+                
+                -- Execute the script and capture result
+                local execSuccess, execResult = pcall(function()
+                    return loadstring(data.script)()
+                end)
+                
+                -- Send result back to server
+                ws:Send(HttpService:JSONEncode({
+                    type = "exec_result",
+                    execId = data.execId,
+                    success = execSuccess,
+                    result = execSuccess and (tostring(execResult) or "Script executed successfully") or nil,
+                    error = not execSuccess and tostring(execResult) or nil,
+                    script = data.script:sub(1, 100) .. (data.script:len() > 100 and "..." or "")
+                }))
+                
+                if execSuccess then
+                    print("Script executed successfully")
+                else
+                    warn("Script execution failed:", execResult)
+                end
+            elseif data.type == "pong" then
+                -- Heartbeat response received, reset the ping timer
+                lastPingTime = tick()
+            elseif data.type == "error" then
+                warn("Server reported error:", data.message)
+            end
+        end)
+        
+        -- Handle connection close
+        ws.OnClose:Connect(function()
+            print("WebSocket connection closed")
+            connected = false
+            
+            -- Try to reconnect with exponential backoff
+            if reconnectAttempts < MAX_RECONNECT_ATTEMPTS then
+                reconnectAttempts = reconnectAttempts + 1
+                local delay = RECONNECT_DELAY * reconnectAttempts
+                
+                print("WebSocket closed. Reconnecting in " .. delay .. " seconds (attempt " .. reconnectAttempts .. ")")
+                wait(delay)
+                setupWebSocket()
+            else
+                warn("Failed to reconnect WebSocket after " .. MAX_RECONNECT_ATTEMPTS .. " attempts")
+                
+                -- Reset reconnect attempts after waiting a longer period
+                wait(60)
+                reconnectAttempts = 0
+                print("Resetting reconnect attempts and trying again")
+                setupWebSocket()
+            end
+        end)
+        
+        -- Send initialization message
+        local initMessage = HttpService:JSONEncode({
+            type = "init",
+            accountName = player.Name,
+            placeId = game.PlaceId
+        })
+        ws:Send(initMessage)
+        
+        print("Sent WebSocket initialization message")
+    end)
+    
+    if not success then
+        warn("Failed to setup WebSocket")
+        return false
+    end
+    
+    return true
+end
+
+-- Send ping to keep WebSocket alive
+local function pingWebSocket()
+    if ws and connected then
+        local currentTime = tick()
+        
+        if currentTime - lastPingTime > PING_INTERVAL then
+            pcall(function()
+                ws:Send(HttpService:JSONEncode({
+                    type = "ping",
+                    timestamp = currentTime
+                }))
+            end)
+            lastPingTime = currentTime
+        end
+    end
+end
+
+
+-- Handle health changes
+local function monitorHealth(humanoid)
+    humanoid.HealthChanged:Connect(function(newHealth)
+        local healthDecrease = lastHealth - newHealth
+        local significantChange = healthDecrease > (humanoid.MaxHealth * HEALTH_CHANGE_THRESHOLD)
+        
+        if significantChange and healthDecrease > 0 then
+            print("Health dropped by " .. healthDecrease .. ", sending update")
+            sendGameData()
+        end
+    end)
+end
+
+-- Setup health monitoring
+local function setupHealthMonitoring()
+    -- Monitor current character
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        lastHealth = player.Character.Humanoid.Health
+        monitorHealth(player.Character.Humanoid)
+    end
+    
+    -- Monitor future characters (respawns)
+    player.CharacterAdded:Connect(function(character)
+        local humanoid = character:WaitForChild("Humanoid")
+        lastHealth = humanoid.Health
+        monitorHealth(humanoid)
+    end)
+end
+
+-- Setup game closing detection
+local function setupGameClosingDetection()
+    -- Player leaving
+    player.PlayerRemoving:Connect(function(leavingPlayer)
+        if leavingPlayer == player then
+            if ws and connected then
+                pcall(function() ws:Close() end)
+            end
+            sendLeaveNotification()
+        end
+    end)
+    
+    -- Game crashing/closing
+    if game:GetService("CoreGui"):FindFirstChild("RobloxPromptGui") then
+        game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
+            if child.Name == "ErrorPrompt" then
+                if ws and connected then
+                    pcall(function() ws:Close() end)
+                end
+                sendLeaveNotification()
+            end
+        end)
+    end
+end
+
+-- Main initialization
+spawn(function()
+if game.placeId == 104715542330896 then
+
+    bankMoneyLocation = findBankMoneyLocation()
+
+    -- Send initial game data
+    sendGameData()
+    
+    -- Initial WebSocket setup
+    setupWebSocket()
+    
+    while wait(5) do
+    print(1)
+        -- Check WebSocket more frequently
+        pingWebSocket()
+        
+        -- Send periodic updates less frequently
+        if tick() % UPDATE_INTERVAL < 5 then
+            sendGameData()
+        end
+    end
+end
+end)
+
+`;
+
   if (loading && accounts.length === 0) {
     return <div className="dashboard">Loading dashboard data...</div>;
   }
@@ -291,6 +657,41 @@ const Dashboard = () => {
         </div>
       )}
       
+      <div className="dashboard-card">
+        <div className="script-header">
+          <h3>Monitoring Script</h3>
+          <button 
+            className="btn btn-sm btn-outline-secondary"
+            onClick={() => setShowMonitoringScript(!showMonitoringScript)}
+          >
+            {showMonitoringScript ? 'Hide Script' : 'Show Script'}
+          </button>
+        </div>
+        
+        {showMonitoringScript && (
+          <div className="script-container">
+            <p className="script-instructions">
+              Run this script in your Roblox game to enable monitoring and data collection:
+            </p>
+            <div className="script-actions">
+              <button 
+                className="btn btn-sm btn-outline-primary"
+                onClick={() => {
+                  navigator.clipboard.writeText(monitoringScript);
+                  setSuccessMessage("Script copied to clipboard!");
+                  setTimeout(() => setSuccessMessage(""), 3000);
+                }}
+              >
+                Copy to Clipboard
+              </button>
+            </div>
+            <pre className="lua-code">
+              {monitoringScript}
+            </pre>
+          </div>
+        )}
+      </div>
+      
       <div className="dashboard-card game-data-container">
         <h3>
           Game Data
@@ -305,105 +706,7 @@ const Dashboard = () => {
         
         {gameData.length === 0 ? (
           <div className="no-data-message">
-            <p>No game data available. Run the Roblox script in your game:</p>
-            <pre className="lua-code">
-{`--Run this to monitor your players stats in block spin
-local player = game.Players.LocalPlayer 
-local bankMoneyLocation = nil
-local playerGui = game.Players.LocalPlayer.PlayerGui
-for i,v in pairs(playerGui:children()) do
-    local firstLetter = string.sub(v.Name,0,1)
-    if(tonumber(firstLetter)) then
-        bankMoneyLocation = v
-        break
-    end
-end
-
-
-function makeRequest()
-
-    local unformattedBankMoney = bankMoneyLocation:FindFirstChildOfClass('Frame'):FindFirstChildOfClass('Frame'):FindFirstChild('Options'):FindFirstChildOfClass('TextLabel').text
-    local bankMoney = string.sub(unformattedBankMoney,16)
-
-    local otherData = {
-        playerName = player.Name,
-        displayName = player.DisplayName,
-        position = tostring(player.Character and player.Character:GetPrimaryPartCFrame().Position or Vector3.new(0,0,0)),
-        health = player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health or 0,
-        maxHealth = player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.MaxHealth or 0,
-        level = player.PlayerGui.LevelUp.Frame.LevelCardHolder.LevelCard.TextLabel.text
-    }
-    
-    local JSON = {
-        accountName = player.Name,
-        money = player.PlayerGui.TopRightHud.Holder.Frame.MoneyTextLabel.text,
-        bankMoney = bankMoney,
-        placeId = game.PlaceId,
-        otherData = otherData
-    }
-    
-    local encodedData = game:GetService("HttpService"):JSONEncode(JSON)
-    
-    local r_t = {
-        Url = 'http://localhost:3000/api/gameData',
-        Method = 'POST',
-        Headers = {['Content-Type'] = 'application/json'},
-        Body = encodedData
-    }
-
-    http_request(r_t)
-    
-end
-
--- Get the Players service
-local Players = game:GetService("Players")
-
--- Function to detect when the local player is leaving
-local function onPlayerLeaving(leavingPlayer)
-
-    local leaveJSON = {
-        accountName = player.Name
-    }
-
-    local leaveGameData = game:GetService("HttpService"):JSONEncode(leaveJSON)
-
-    local r_s = {
-        Url = 'http://localhost:3000/api/leaveGame',
-        Method = 'POST',
-        Headers = {['Content-Type'] = 'application/json'},
-        Body = leaveGameData
-    }
-
-    -- Check if it's the local player who's leaving
-    if leavingPlayer == player then
-        -- Send leave notification to server
-        pcall(function()
-            http_request(r_s)
-        end)
-    end
-end
-
--- Connect to the PlayerRemoving event
-Players.PlayerRemoving:Connect(onPlayerLeaving)
-
--- Also detect game closing if possible
-if game:GetService("CoreGui"):FindFirstChild("RobloxPromptGui") then
-    game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
-        if child.Name == "ErrorPrompt" then
-            pcall(function()
-                onPlayerLeaving(player.Name)
-            end)
-        end
-    end)
-end
-
-spawn(function()
-    makeRequest()
-    while wait(10) do
-        makeRequest()
-    end
-end)`}
-            </pre>
+            <p>No game data available. Please run the monitoring script in your Roblox game.</p>
           </div>
         ) : (
           <div>
