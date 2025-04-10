@@ -13,6 +13,12 @@ const { v4: uuidv4 } = require('uuid'); // You'll need to install this package
 const config = require('./config');
 const serverBrowser = require('./ServerBrowser');
 
+// Cross-Platform Configuration
+const PLATFORM_MODE = {
+  IS_MAC: process.platform === 'darwin',
+  IS_WINDOWS: process.platform === 'win32'
+};
+
 
 // Initialize Express app
 const app = express();
@@ -35,63 +41,107 @@ const activeConnections = new Map();
 
 const http = require('http');
 
-// Function to make requests to the RAM API
-function apiRequest(endpoint) {
+function getProcesses(processName) {
   return new Promise((resolve, reject) => {
-    const options = {
-      hostname: config.RAM_API.HOST,
-      port: config.RAM_API.PORT,
-      path: endpoint,
-      method: 'GET'
-    };
-
-    // Add password if configured
-    if (config.RAM_API.PASSWORD) {
-      const urlObj = new URL(`http://${options.hostname}:${options.port}${options.path}`);
-      urlObj.searchParams.append('Password', config.RAM_API.PASSWORD);
-      options.path = urlObj.pathname + urlObj.search;
+    let command = '';
+    
+    if (PLATFORM_MODE.IS_WINDOWS) {
+      command = `tasklist /fi "imagename eq ${processName}" /fo csv /nh`;
+    } else if (PLATFORM_MODE.IS_MAC) {
+      // Use pgrep for a more reliable process check
+      command = `pgrep -x "${processName}"`;
+    } else if (PLATFORM_MODE.IS_LINUX) {
+      command = `pgrep -x "${processName}"`;
+    } else {
+      return reject(new Error('Unsupported platform'));
     }
 
-    const req = http.request(options, (res) => {
-      let data = '';
-
-      // Handle error status codes
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        return reject(new Error(`API request failed with status ${res.statusCode}`));
-      }
-
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-
-      res.on('end', () => {
-        resolve(data);
-      });
-    });
-
-    req.on('error', (error) => {
-      reject(error);
-    });
-
-    req.end();
-  });
-}
-
-// Add this function to check if the Roblox Player Installer is currently running
-function isRobloxInstallerRunning() {
-  return new Promise((resolve, reject) => {
-    exec('tasklist /fi "imagename eq RobloxPlayerInstaller.exe" /fo csv /nh', (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error checking installer: ${error}`);
+    exec(command, (error, stdout, stderr) => {
+      // On Mac/Linux, pgrep returns non-zero exit code if no processes found
+      if (error && (error.code !== 1 || stderr)) {
+        console.error(`Error executing process list: ${error}`);
         return reject(error);
       }
       
-      // If output contains data, the installer is running
-
-      const isRunning = !stdout.trim().startsWith('INFO')
-      resolve(isRunning);
+      let processes = [];
+      
+      if (PLATFORM_MODE.IS_WINDOWS) {
+        // If no processes, stdout will be empty
+        if (!stdout.trim()) {
+          return resolve([]);
+        }
+        
+        processes = stdout.trim().split('\r\n')
+          .filter(line => line.length > 0)
+          .map(line => {
+            const parts = line.split('","');
+            if (parts.length >= 2) {
+              return {
+                name: parts[0].replace(/^"|"$/g, ''),
+                pid: parseInt(parts[1].replace(/^"|"$/g, '')),
+                sessionName: parts[2] ? parts[2].replace(/^"|"$/g, '') : 'Unknown',
+                sessionNumber: parts[3] ? parseInt(parts[3].replace(/^"|"$/g, '')) : 0,
+                memoryUsage: parts[4] ? parts[4].replace(/^"|"$/g, '') : 'Unknown'
+              };
+            }
+            return null;
+          })
+          .filter(process => process !== null);
+      } else {
+        // Mac/Linux: pgrep returns PIDs, one per line
+        if (!stdout.trim()) {
+          return resolve([]);
+        }
+        
+        processes = stdout.trim().split('\n')
+          .map(pidStr => ({
+            pid: parseInt(pidStr.trim()),
+            name: processName
+          }));
+      }
+      
+      resolve(processes);
     });
   });
+}
+
+
+function isProcessRunning(processNames) {
+  // Ensure processNames is an array
+  const names = Array.isArray(processNames) ? processNames : [processNames];
+  
+  return new Promise((resolve) => {
+    let command = '';
+    
+    if (PLATFORM_MODE.IS_WINDOWS) {
+      // Windows: Use tasklist with multiple process names
+      command = `tasklist /fi "imagename eq ${names[0]}" /fo csv /nh`;
+    } else {
+      // Mac/Linux: Use pgrep with multiple process names
+      command = `pgrep -f "${names[0]}"`;
+    }
+
+    exec(command, (error, stdout) => {
+      // Explicitly resolve based on output, not error
+      if (PLATFORM_MODE.IS_WINDOWS) {
+        // Windows: check if output exists and doesn't start with INFO
+        resolve(stdout.trim().length > 0 && !stdout.trim().startsWith('INFO'));
+      } else {
+        // Mac/Linux: check if pgrep returned any PIDs
+        resolve(stdout.trim().length > 0);
+      }
+    });
+  });
+}
+
+
+// Add this function to check if the Roblox Player Installer is currently running
+function isRobloxInstallerRunning() {
+  const installerNames = PLATFORM_MODE.IS_WINDOWS 
+    ? ['RobloxPlayerInstaller.exe', 'RobloxInstaller.exe']
+    : ['RobloxInstaller', 'RobloxPlayerInstaller', 'Roblox Installer'];
+  
+  return isProcessRunning(installerNames);
 }
 
 async function waitForInstallerToComplete(timeout = 30000) { // Reduced timeout to 30 seconds
@@ -134,41 +184,27 @@ async function waitForInstallerToComplete(timeout = 30000) { // Reduced timeout 
 
 // Function to get running Roblox processes with more reliable matching
 function getRobloxProcesses() {
-  return new Promise((resolve, reject) => {
-    // Windows command to list processes
-    exec('tasklist /fi "imagename eq RobloxPlayerBeta.exe" /fo csv /nh', (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error executing tasklist: ${error}`);
-        return reject(error);
-      }
-      
-      // Parse the CSV output
-      const processes = stdout.trim().split('\r\n')
-        .filter(line => line.length > 0)
-        .map(line => {
-          const parts = line.split('","');
-          if (parts.length >= 2) {
-            return {
-              name: parts[0].replace('"', ''),
-              pid: parseInt(parts[1].replace('"', '')),
-              sessionName: parts[2] ? parts[2].replace('"', '') : 'Unknown',
-              sessionNumber: parts[3] ? parseInt(parts[3].replace('"', '')) : 0,
-              memoryUsage: parts[4] ? parts[4].replace('"', '') : 'Unknown'
-            };
-          }
-          return null;
-        })
-        .filter(process => process !== null);
-      
-      resolve(processes);
-    });
-  });
+  const processName = PLATFORM_MODE.IS_WINDOWS 
+    ? 'RobloxPlayerBeta.exe' 
+    : 'RobloxPlayer';
+  
+  return getProcesses(processName);
 }
 
 // Function to terminate a process by PID
 function terminateProcess(pid) {
   return new Promise((resolve, reject) => {
-    exec(`taskkill /F /PID ${pid}`, (error, stdout, stderr) => {
+    let command = '';
+    
+    if (PLATFORM_MODE.IS_WINDOWS) {
+      command = `taskkill /F /PID ${pid}`;
+    } else if (PLATFORM_MODE.IS_MAC) {
+      command = `kill -9 ${pid}`;
+    } else {
+      return reject(new Error('Unsupported platform'));
+    }
+
+    exec(command, (error, stdout, stderr) => {
       if (error) {
         console.error(`Error terminating process: ${error}`);
         return reject(error);
@@ -179,7 +215,6 @@ function terminateProcess(pid) {
 }
 
 // Set up WebSocket server
-// Update the WebSocket server implementation
 function setupWebSocketServer(server) {
   const wss = new WebSocket.Server({ server });
   
@@ -193,6 +228,18 @@ function setupWebSocketServer(server) {
     wss.clients.forEach(ws => {
       if (ws.isAlive === false) {
         console.log(`Terminating inactive WebSocket connection for ${ws.accountName || 'unknown'}`);
+        
+        // Mark account as no longer having WebSocket before terminating
+        if (ws.accountName && launchedProcesses.has(ws.accountName)) {
+          const processInfo = launchedProcesses.get(ws.accountName);
+          launchedProcesses.set(ws.accountName, {
+            ...processInfo,
+            hasWebSocket: false
+          });
+          
+          console.log(`Marked ${ws.accountName} as disconnected due to inactivity`);
+        }
+        
         return ws.terminate();
       }
       
@@ -245,13 +292,16 @@ function setupWebSocketServer(server) {
             message: 'Connection established'
           }));
           
-          // Update the launched process with WebSocket status
+          // Only add/update the launched process with WebSocket status when WebSocket connects
+          // This ensures we only show stats for processes with active connections
           if (launchedProcesses.has(accountName)) {
             const processInfo = launchedProcesses.get(accountName);
             launchedProcesses.set(accountName, {
               ...processInfo,
               hasWebSocket: true,
-              lastPing: new Date()
+              lastPing: new Date(),
+              // Make sure we keep any existing stats
+              visible: true // Mark as visible in UI
             });
           } else {
             // Create a minimal entry if none exists
@@ -259,7 +309,8 @@ function setupWebSocketServer(server) {
               account: accountName,
               hasWebSocket: true,
               lastPing: new Date(),
-              status: 'unknown'
+              status: 'unknown',
+              visible: true // Mark as visible in UI
             });
             console.log(`Created minimal launchedProcess entry for ${accountName}`);
           }
@@ -268,28 +319,7 @@ function setupWebSocketServer(server) {
         else if (data.type === 'exec_result') {
           console.log(`Execution result from ${accountName}:`, data.result);
           
-          if (launchedProcesses.has(accountName)) {
-            const processInfo = launchedProcesses.get(accountName);
-            const execHistory = processInfo.execHistory || [];
-            
-            execHistory.push({
-              timestamp: new Date(),
-              script: data.script,
-              result: data.result,
-              success: data.success,
-              error: data.error
-            });
-            
-            // Keep only the last 20 executions
-            while (execHistory.length > 20) {
-              execHistory.shift();
-            }
-            
-            launchedProcesses.set(accountName, {
-              ...processInfo,
-              execHistory
-            });
-          }
+          // Just log the result but don't store it
         }
         // Handle ping/heartbeat
         else if (data.type === 'ping') {
@@ -310,7 +340,8 @@ function setupWebSocketServer(server) {
               launchedProcesses.set(accountName, {
                 ...processInfo,
                 hasWebSocket: true,
-                lastPing: new Date()
+                lastPing: new Date(),
+                visible: true // Keep visible flag
               });
             }
           }
@@ -336,15 +367,16 @@ function setupWebSocketServer(server) {
         console.log(`Removed connection ${connectionId} for ${accountName}`);
         console.log(`Remaining connections: ${activeConnections.get(accountName).size}`);
         
-        // If no more connections for this account, update process info
+        // If no more connections for this account, update process info to hide from UI
         if (activeConnections.get(accountName).size === 0) {
           if (launchedProcesses.has(accountName)) {
             const processInfo = launchedProcesses.get(accountName);
             launchedProcesses.set(accountName, {
               ...processInfo,
-              hasWebSocket: false
+              hasWebSocket: false,
+              visible: false // Mark as not visible in UI
             });
-            console.log(`Marked ${accountName} as having no WebSocket`);
+            console.log(`Marked ${accountName} as having no WebSocket and hidden from UI`);
           }
         }
       }
@@ -357,6 +389,18 @@ function setupWebSocketServer(server) {
       if (accountName && activeConnections.has(accountName)) {
         activeConnections.get(accountName).delete(connectionId);
         console.log(`Removed connection ${connectionId} for ${accountName} due to error`);
+        
+        // Check if this was the last connection for the account
+        if (activeConnections.get(accountName).size === 0) {
+          if (launchedProcesses.has(accountName)) {
+            const processInfo = launchedProcesses.get(accountName);
+            launchedProcesses.set(accountName, {
+              ...processInfo,
+              hasWebSocket: false,
+              visible: false // Hide from UI on error
+            });
+          }
+        }
       }
     });
   });
@@ -364,6 +408,15 @@ function setupWebSocketServer(server) {
   console.log('WebSocket server initialized');
   return wss;
 }
+
+app.get('/api/platformMode', (req, res) => {
+  res.json({
+    platform: process.platform,
+    isMac: PLATFORM_MODE.IS_MAC,
+    isWindows: PLATFORM_MODE.IS_WINDOWS
+  });
+});
+
 // Update the executeScript endpoint with better error handling
 app.post('/api/executeScript', (req, res) => {
   const { accountName, script } = req.body;
@@ -483,31 +536,75 @@ app.post('/api/executeScript', (req, res) => {
   }
 });
 
-// Add a new API endpoint to get execution history for an account
-app.get('/api/executionHistory/:accountName', (req, res) => {
-  const { accountName } = req.params;
+// Execute script on multiple accounts
+app.post('/api/executeScriptMultiple', (req, res) => {
+  const { accountNames, script } = req.body;
   
-  if (!accountName) {
+  if (!accountNames || !Array.isArray(accountNames) || accountNames.length === 0 || !script) {
     return res.status(400).json({
       success: false,
-      message: 'Account name is required'
+      message: 'Account names array and script are required'
     });
   }
   
-  if (!launchedProcesses.has(accountName)) {
-    return res.status(404).json({
-      success: false,
-      message: 'Account not found'
-    });
-  }
+  console.log(`Multiple script execution request for ${accountNames.length} accounts`);
   
-  const processInfo = launchedProcesses.get(accountName);
-  const execHistory = processInfo.execHistory || [];
-  
-  res.json({
+  const results = {
     success: true,
-    history: execHistory
-  });
+    totalCount: accountNames.length,
+    successCount: 0,
+    failedCount: 0,
+    execId: uuidv4(),
+    details: []
+  };
+  
+  // Process each account
+  for (const accountName of accountNames) {
+    try {
+      if (!activeConnections.has(accountName) || activeConnections.get(accountName).size === 0) {
+        console.log(`No active connection for ${accountName}`);
+        results.failedCount++;
+        results.details.push({
+          account: accountName,
+          success: false,
+          message: 'No active WebSocket connection'
+        });
+        continue;
+      }
+      
+      // Get the first connection for this account
+      const ws = Array.from(activeConnections.get(accountName).values())[0];
+      
+      // Generate a unique execution ID for this account
+      const accountExecId = uuidv4();
+      
+      // Send execution request
+      ws.send(JSON.stringify({
+        type: 'execute',
+        execId: accountExecId,
+        script
+      }));
+      
+      console.log(`Sent script to ${accountName} (${accountExecId})`);
+      results.successCount++;
+      results.details.push({
+        account: accountName,
+        success: true,
+        execId: accountExecId
+      });
+    } catch (error) {
+      console.error(`Failed to send script to ${accountName}:`, error);
+      results.failedCount++;
+      results.details.push({
+        account: accountName,
+        success: false,
+        message: error.message || 'Unknown error'
+      });
+    }
+  }
+  
+  // Return overall results
+  res.json(results);
 });
 
 // Add this endpoint for getting multiple different server IDs
@@ -991,16 +1088,102 @@ app.post('/api/gameData', (req, res) => {
     // If we have a launched process for this account, update it
     if (launchedProcesses.has(accountName)) {
       const info = launchedProcesses.get(accountName);
+      
+      // Get previous balance values
+      const prevMoney = info.money !== undefined ? info.money : 0;
+      const prevBankMoney = info.bankMoney !== undefined ? info.bankMoney : 0;
+      
+      // Clean and parse current money values for comparison
+      let currentMoney = 0;
+      let currentBankMoney = 0;
+      
+      // Parse money values for comparison
+      if (typeof money === 'number') {
+        currentMoney = money;
+      } else if (typeof money === 'string') {
+        // Remove currency symbols and commas, then parse as number
+        const cleanedMoney = money.replace(/[$,£€]/g, '');
+        currentMoney = parseFloat(cleanedMoney) || 0;
+      }
+      
+      // Parse bank money values for comparison
+      if (typeof bankMoney === 'number') {
+        currentBankMoney = bankMoney;
+      } else if (typeof bankMoney === 'string') {
+        // Remove currency symbols and commas, then parse as number
+        const cleanedBankMoney = bankMoney.replace(/[$,£€]/g, '');
+        currentBankMoney = parseFloat(cleanedBankMoney) || 0;
+      }
+      
+      // Parse previous money values for comparison if they're strings
+      let parsedPrevMoney = prevMoney;
+      let parsedPrevBankMoney = prevBankMoney;
+      
+      if (typeof prevMoney === 'string') {
+        const cleanedPrevMoney = prevMoney.replace(/[$,£€]/g, '');
+        parsedPrevMoney = parseFloat(cleanedPrevMoney) || 0;
+      }
+      
+      if (typeof prevBankMoney === 'string') {
+        const cleanedPrevBankMoney = prevBankMoney.replace(/[$,£€]/g, '');
+        parsedPrevBankMoney = parseFloat(cleanedPrevBankMoney) || 0;
+      }
+      
+      // Check if either pocket or bank money has increased
+      const hasMoneyIncreased = currentMoney > parsedPrevMoney || currentBankMoney > parsedPrevBankMoney;
+      
+      // Create balance history array if it doesn't exist
+      let balanceHistory = info.balanceHistory || [];
+      
+      // If money has increased, reset the history array completely
+      if (hasMoneyIncreased) {
+        balanceHistory = [true]; // Reset to a single "true" entry
+        console.log(`Money increased for ${accountName}. Resetting activity counter.`);
+      } else {
+        // Add current status to history array (false since money didn't increase)
+        balanceHistory.push(false);
+        
+        // Only keep the last 10 entries
+        if (balanceHistory.length > 10) {
+          balanceHistory.shift();
+        }
+      }
+      
+      // Determine status based on balance history
+      let accountStatus;
+      
+      // Check if there's ANY activity in the history
+      const hasAnyActivity = balanceHistory.some(changed => changed);
+      
+      if (hasAnyActivity) {
+        // If there's any activity in the history, account is active
+        accountStatus = 'running';
+      } else {
+        // No activity detected, check the thresholds
+        if (balanceHistory.length >= 10) {
+          accountStatus = 'inactive';
+        } else if (balanceHistory.length >= 5) {
+          accountStatus = 'warning';
+        } else {
+          accountStatus = 'running'; // Less than 5 inactive pings, still considered running
+        }
+      }
+      
+      // Update process info
       launchedProcesses.set(accountName, {
         ...info,
         money,
         bankMoney,
         hasWebSocket: hasWebSocket || false,
         lastUpdate: new Date(),
-        otherData
+        otherData,
+        balanceHistory,
+        status: accountStatus,
+        // Only set visible to true if there's an active WebSocket connection
+        visible: info.hasWebSocket
       });
     } else {
-      // Create a new entry if we don't have one
+      // Create a new entry if we don't have one, but only mark as visible if WebSocket connected
       launchedProcesses.set(accountName, {
         account: accountName,
         placeId,
@@ -1009,7 +1192,9 @@ app.post('/api/gameData', (req, res) => {
         hasWebSocket: hasWebSocket || false,
         lastUpdate: new Date(),
         status: 'running',
-        otherData
+        balanceHistory: [true], // Initialize with a "increased" status for first entry
+        otherData,
+        visible: hasWebSocket // Only visible if WebSocket is connected
       });
     }
     
@@ -1026,19 +1211,24 @@ app.post('/api/gameData', (req, res) => {
   }
 });
 
+
 // Endpoint to retrieve the latest game data for all accounts
 app.get('/api/gameData', (req, res) => {
   const gameData = Array.from(launchedProcesses.entries())
+    .filter(([_, data]) => data.visible !== false) // Only return visible accounts
     .map(([account, data]) => ({
       account,
       money: data.money !== undefined ? data.money : 0,
-      bankMoney: data.bankMoney !== undefined ? data.bankMoney : 0, // Include bank money in response
+      bankMoney: data.bankMoney !== undefined ? data.bankMoney : 0,
       placeId: data.placeId || '',
       hasWebSocket: data.hasWebSocket,
       lastUpdate: data.lastUpdate || null,
       pid: data.pid || null,
       status: data.status || 'unknown',
-      otherData: data.otherData || {}
+      otherData: data.otherData || {},
+      // Include balance history info for debugging/monitoring
+      balanceHistoryLength: data.balanceHistory ? data.balanceHistory.length : 0,
+      inactiveCount: data.balanceHistory ? data.balanceHistory.filter(change => !change).length : 0
     }));
   
   res.json(gameData);
@@ -1141,4 +1331,4 @@ process.on('SIGINT', () => {
   });
 });
 
-module.exports = app;
+module.exports = {app,PLATFORM_MODE};

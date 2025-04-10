@@ -6,7 +6,7 @@ A comprehensive dashboard for managing Roblox accounts, monitoring game data, cr
 
 - **Dashboard with real-time game statistics**  
 - **Monitor player data** including money, bank balances, health, and position  
-- **Remote script execution** (Coming soon) via WebSockets  
+- **Remote script execution** via WebSockets  
 - **Process monitoring and management**  
 - **Server browser** for finding and joining games  
 
