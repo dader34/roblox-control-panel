@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import apiService from '../services/api'; // Adjust the import path as needed
 
 const ScriptExecutor = () => {
     const [accounts, setAccounts] = useState([]);
@@ -11,8 +12,6 @@ const ScriptExecutor = () => {
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [executing, setExecuting] = useState(false);
-    const [executionHistory, setExecutionHistory] = useState([]);
-    const [showHistory, setShowHistory] = useState(false);
 
     // Script saving and loading
     const [savedScripts, setSavedScripts] = useState([]);
@@ -40,12 +39,7 @@ const ScriptExecutor = () => {
         const fetchAccountData = async () => {
             try {
                 // Fetch all game data
-                const response = await fetch('/api/gameData');
-                if (!response.ok) {
-                    throw new Error('Failed to fetch game data');
-                }
-
-                const gameData = await response.json();
+                const gameData = await apiService.getGameData();
                 console.log('Game data:', gameData); // Debugging
 
                 // Set all accounts
@@ -80,35 +74,6 @@ const ScriptExecutor = () => {
         return () => clearInterval(interval);
     }, [selectedAccount, multiSelectMode]);
 
-    // Fetch execution history for the selected account
-    useEffect(() => {
-        if (!selectedAccount || multiSelectMode) return;
-
-        const fetchExecutionHistory = async () => {
-            try {
-                const response = await fetch(`/api/executionHistory/${selectedAccount}`);
-                if (!response.ok) {
-                    console.error('Failed to fetch execution history');
-                    return;
-                }
-
-                const data = await response.json();
-                if (data.success && data.history) {
-                    setExecutionHistory(data.history);
-                }
-            } catch (error) {
-                console.error('Error fetching execution history:', error);
-            }
-        };
-
-        fetchExecutionHistory();
-
-        // Poll for execution history every 3 seconds
-        const interval = setInterval(fetchExecutionHistory, 3000);
-
-        return () => clearInterval(interval);
-    }, [selectedAccount, multiSelectMode]);
-
     const executeScript = async () => {
         if (multiSelectMode && selectedAccounts.length === 0) {
             setError('Please select at least one account');
@@ -131,115 +96,53 @@ const ScriptExecutor = () => {
             if (multiSelectMode) {
                 // Execute on selected accounts
                 const accountsToProcess = selectedAccounts;
-                const results = {
-                    total: accountsToProcess.length,
-                    successes: 0,
-                    failures: 0,
-                    messages: []
-                };
-
-                // Execute on each selected account
-                for (const account of accountsToProcess) {
-                    try {
-                        const response = await fetch('/api/executeScript', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                accountName: account,
-                                script: script,
-                            }),
-                        });
-
-                        const data = await response.json();
-
-                        if (data.success) {
-                            results.successes++;
-                            results.messages.push(`Success: ${account} (ID: ${data.execId})`);
-                        } else {
-                            results.failures++;
-                            results.messages.push(`Failed: ${account} - ${data.message}`);
-                        }
-                    } catch (error) {
-                        results.failures++;
-                        results.messages.push(`Error: ${account} - ${error.message || 'Unknown error'}`);
+                
+                const result = await apiService.executeScriptOnMultipleAccounts(accountsToProcess, script);
+                
+                if (result.success) {
+                    setSuccessMessage(`Script executed on ${result.successCount}/${result.totalCount} accounts`);
+                    console.log('Execution results:', result);
+                    
+                    // Show more detailed results if there were failures
+                    if (result.failedCount > 0 && result.details) {
+                        const failedAccounts = result.details
+                            .filter(detail => !detail.success)
+                            .map(detail => `${detail.account}: ${detail.message || 'Failed'}`)
+                            .join(', ');
+                            
+                        console.warn('Failed accounts:', failedAccounts);
                     }
-                }
-
-                if (results.successes > 0) {
-                    setSuccessMessage(`Script executed on ${results.successes}/${results.total} accounts`);
                 } else {
-                    setError(`Failed to execute script on any account. Check console for details.`);
+                    setError(result.message || 'Failed to execute script on accounts');
                 }
-
-                // Log detailed results to console
-                console.log('Execution results:', results);
             } else if (selectedAccount === 'all_accounts') {
                 // Execute on all WebSocket-enabled accounts
-                const results = {
-                    total: accounts.length,
-                    successes: 0,
-                    failures: 0,
-                    messages: []
-                };
-
-                // Execute on each connected account
-                for (const account of accounts) {
-                    try {
-                        const response = await fetch('/api/executeScript', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                accountName: account,
-                                script: script,
-                            }),
-                        });
-
-                        const data = await response.json();
-
-                        if (data.success) {
-                            results.successes++;
-                            results.messages.push(`Success: ${account} (ID: ${data.execId})`);
-                        } else {
-                            results.failures++;
-                            results.messages.push(`Failed: ${account} - ${data.message}`);
-                        }
-                    } catch (error) {
-                        results.failures++;
-                        results.messages.push(`Error: ${account} - ${error.message || 'Unknown error'}`);
+                const result = await apiService.executeScriptOnMultipleAccounts(accounts, script);
+                
+                if (result.success) {
+                    setSuccessMessage(`Script executed on ${result.successCount}/${result.totalCount} accounts`);
+                    console.log('Execution results:', result);
+                    
+                    // Show more detailed results if there were failures
+                    if (result.failedCount > 0 && result.details) {
+                        const failedAccounts = result.details
+                            .filter(detail => !detail.success)
+                            .map(detail => `${detail.account}: ${detail.message || 'Failed'}`)
+                            .join(', ');
+                            
+                        console.warn('Failed accounts:', failedAccounts);
                     }
-                }
-
-                if (results.successes > 0) {
-                    setSuccessMessage(`Script executed on ${results.successes}/${results.total} accounts`);
                 } else {
-                    setError(`Failed to execute script on any account. Check console for details.`);
+                    setError(result.message || 'Failed to execute script on accounts');
                 }
-
-                // Log detailed results to console
-                console.log('Execution results:', results);
             } else {
                 // Execute on single account
-                const response = await fetch('/api/executeScript', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        accountName: selectedAccount,
-                        script: script,
-                    }),
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    setSuccessMessage(`Script execution requested (ID: ${data.execId})`);
+                const result = await apiService.executeScript(selectedAccount, script);
+                
+                if (result.success) {
+                    setSuccessMessage(`Script execution requested (ID: ${result.execId})`);
                 } else {
-                    setError(data.message || 'Failed to execute script');
+                    setError(result.message || 'Failed to execute script');
                 }
             }
         } catch (error) {
@@ -377,28 +280,6 @@ return game:GetService("HttpService"):JSONEncode(result)`
 
     const loadSampleScript = (scriptCode) => {
         setScript(scriptCode);
-    };
-
-    // Format execution timestamp
-    const formatTimestamp = (timestamp) => {
-        if (!timestamp) return 'Unknown';
-
-        try {
-            return new Date(timestamp).toLocaleString();
-        } catch (e) {
-            return 'Invalid date';
-        }
-    };
-
-    // Format script code for display (truncate if too long)
-    const formatScript = (script) => {
-        if (!script) return '';
-
-        if (script.length > 100) {
-            return script.substring(0, 100) + '...';
-        }
-
-        return script;
     };
 
     return (
@@ -599,45 +480,8 @@ return game:GetService("HttpService"):JSONEncode(result)`
                         >
                             {executing ? 'Executing...' : 'Execute Script'}
                         </button>
-
-                        <button
-                            className="btn btn-secondary"
-                            onClick={() => setShowHistory(!showHistory)}
-                            disabled={multiSelectMode || !selectedAccount || selectedAccount === 'all_accounts'}
-                        >
-                            {showHistory ? 'Hide Execution History' : 'Show Execution History'}
-                        </button>
                     </div>
                 </div>
-
-                {showHistory && !multiSelectMode && selectedAccount && selectedAccount !== 'all_accounts' && (
-                    <div className="history-panel">
-                        <h3>Execution History</h3>
-                        {executionHistory.length === 0 ? (
-                            <p>No execution history available for this account.</p>
-                        ) : (
-                            <div className="execution-history">
-                                {executionHistory.map((entry, index) => (
-                                    <div key={index} className={`execution-entry ${entry.success ? 'success' : 'error'}`}>
-                                        <div className="execution-timestamp">
-                                            {formatTimestamp(entry.timestamp)}
-                                        </div>
-                                        <div className="execution-script">
-                                            <code>{formatScript(entry.script)}</code>
-                                        </div>
-                                        <div className="execution-result">
-                                            {entry.success ? (
-                                                <div className="success-result">{entry.result || 'Executed successfully'}</div>
-                                            ) : (
-                                                <div className="error-result">{entry.error || 'Execution failed'}</div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
             </div>
         </div>
     );

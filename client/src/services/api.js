@@ -272,7 +272,52 @@ export const getGameData = async () => {
   return await apiRequest('/gameData');
 };
 
+/**
+ * Execute a Lua script on a specific account
+ * @param {string} accountName - Account name to execute script on
+ * @param {string} script - Lua script to execute
+ * @returns {Promise<Object>} Result of script execution
+ */
+export const executeScript = async (accountName, script) => {
+  return await apiRequest('/executeScript', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      accountName,
+      script
+    })
+  });
+};
 
+/**
+ * Execute a Lua script on multiple accounts
+ * @param {string[]} accountNames - Array of account names to execute script on
+ * @param {string} script - Lua script to execute
+ * @returns {Promise<Object>} Result of script execution
+ */
+export const executeScriptOnMultipleAccounts = async (accountNames, script) => {
+  return await apiRequest('/executeScriptMultiple', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      accountNames,
+      script
+    })
+  });
+};
+
+/**
+ * Get execution history for a specific account
+ * @param {string} accountName - Account name
+ * @returns {Promise<Object>} Execution history
+ */
+export const getExecutionHistory = async (accountName) => {
+  return await apiRequest(`/executionHistory/${accountName}`);
+};
 
 
 export default {
@@ -294,5 +339,8 @@ export default {
   getAlias,
   getDescription,
   getMultipleDifferentJobIds,
-  launchMultipleAccounts
+  launchMultipleAccounts,
+  executeScript,
+  executeScriptOnMultipleAccounts,
+  getExecutionHistory
 };
