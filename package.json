@@ -1,46 +1,31 @@
 {
     "name": "roblox-control-panel",
     "version": "1.0.0",
-    "description": "Remote control panel for Roblox Account Manager",
-    "main": "server/server.js",
+    "description": "A control panel for managing Roblox accounts and instances",
+    "main": "server/index.js",
     "scripts": {
-        "start": "node server/server.js",
-        "dev": "nodemon server/server.js",
-        "test": "echo \"Error: no test specified\" && exit 1",
-        "client": "cd client && npm start",
-        "build": "cd client && npm run build",
-        "install-client": "cd client && npm install",
-        "heroku-postbuild": "npm run install-client && npm run build"
+      "start": "node server/index.js",
+      "dev": "nodemon server/index.js",
+      "test": "echo \"Error: no test specified\" && exit 1",
+      "build": "cd client && npm run build"
     },
     "keywords": [
-        "roblox",
-        "account-manager",
-        "remote-control",
-        "panel"
+      "roblox",
+      "control-panel",
+      "game-automation"
     ],
     "author": "",
-    "license": "MIT",
+    "license": "ISC",
     "dependencies": {
-        "canvas": "^3.1.0",
-        "cors": "^2.8.5",
-        "express": "^4.18.2",
-        "http-proxy-middleware": "^2.0.6",
-        "lucide-react": "^0.487.0",
-        "node-fetch": "^3.3.2",
-        "puppeteer": "^24.5.0",
-        "screenshot-desktop": "^1.15.1",
-        "user-agents": "^1.1.496",
-        "uuid": "^11.1.0",
-        "windows-screenshot": "^3.1.1"
+      "cors": "^2.8.5",
+      "express": "^4.18.2",
+      "http-proxy-middleware": "^2.0.6",
+      "uuid": "^9.0.1",
+      "ws": "^8.16.0",
+      "puppeteer": "^21.3.8",
+      "user-agents": "^1.1.0"
     },
     "devDependencies": {
-        "concurrently": "^9.1.2",
-        "cross-env": "^7.0.3",
-        "electron-builder": "^26.0.12",
-        "nodemon": "^3.0.1",
-        "wait-on": "^8.0.3"
-    },
-    "engines": {
-        "node": ">=14.0.0"
+      "nodemon": "^3.0.2"
     }
-}
+  }

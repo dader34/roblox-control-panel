@@ -9,6 +9,9 @@ A comprehensive dashboard for managing Roblox accounts, monitoring game data, cr
 - **Remote script execution** via WebSockets  
 - **Process monitoring and management**  
 - **Server browser** for finding and joining games  
+- **Inactivity detection** with visual indicators for idle accounts
+- **Automatic movement** for inactive accounts to prevent stalling
+- **Balance tracking** to monitor money-making progress
 
 ---
 
@@ -22,7 +25,7 @@ A comprehensive dashboard for managing Roblox accounts, monitoring game data, cr
 
 ### Step 1: Install Node.js and Git  
 
-If you don’t have Node.js and Git installed:  
+If you don't have Node.js and Git installed:  
 
 - [Download and install Node.js](https://nodejs.org)  
 - [Download and install Git](https://git-scm.com)  
@@ -113,11 +116,39 @@ Now go to [http://localhost:3000](http://localhost:3000) to access the control p
 3. Once you have joined a game and passed the **"Play"** screen, execute the script found on the dashboard.  
 4. The **dashboard** will display **live statistics** for all running games.  
 
+### Inactivity Monitoring
+
+The dashboard now features an advanced inactivity monitoring system:
+- Accounts will show a **yellow indicator** after 5 updates without balance increases
+- Accounts will show a **red indicator** after 10 updates without balance increases
+- Any money increase will immediately reset the inactive status
+- Status is displayed directly in the dashboard with visual indicators
+
+### Automatic Movement
+
+For inactive accounts, the system includes an automatic movement feature:
+- When an account is marked as inactive, it will automatically move forward one block
+- Movement occurs only once every 60 seconds to avoid detection
+- This helps prevent accounts from getting stuck in one place
+- No configuration needed - works automatically for inactive accounts
+
 ---
 
 ## Troubleshooting  
 
-(Include common issues and solutions here)  
+### Common Issues:
+
+#### Yellow/Red Status Indicators
+- **Issue**: Account shows yellow or red status despite being active
+- **Solution**: Check if the account is actually earning money. Visual movement isn't enough - the balance must increase.
+
+#### Auto-Movement Not Working
+- **Issue**: Inactive accounts aren't moving automatically
+- **Solution**: Ensure the WebSocket connection is active. Check the dashboard for the WebSocket indicator.
+
+#### Balance Not Updating
+- **Issue**: Money values aren't changing
+- **Solution**: Make sure the monitoring script is running and properly accessing the game's UI elements.
 
 ---
 
@@ -130,4 +161,4 @@ Now go to [http://localhost:3000](http://localhost:3000) to access the control p
 ## Acknowledgments  
 
 - Built using **React, Express, and WebSocket technology**  
-- Leverages **Roblox Account Manager** for basic account handling  
+- Leverages **Roblox Account Manager** for basic account handling

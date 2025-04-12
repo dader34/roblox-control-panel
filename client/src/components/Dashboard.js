@@ -165,18 +165,9 @@ const Dashboard = () => {
     try {
       setLoading(true);
 
-      // First set recommended server
-      try {
-        await setRecommendedServer(selectedAccount, placeId);
-        console.log('Successfully set recommended server');
-      } catch (serverError) {
-        console.error('Warning: Could not set recommended server:', serverError);
-        // Continue with launch even if server setting fails
-      }
-
       // Then launch the game
       const result = await launchAccount(selectedAccount, placeId);
-      setSuccessMessage(`Successfully launched: ${result}`);
+      setSuccessMessage(`Successfully launched: ${result.account}`);
 
       // Refresh process list after launch
       setTimeout(async () => {
