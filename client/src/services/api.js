@@ -67,7 +67,7 @@ export const getAccountsDetailed = async (group = null) => {
       const response = await apiRequest(endpoint);
       console.log('API response for accounts:', response);
       
-      return JSON.parse(response)
+      return response
     } catch (error) {
       console.error('Error in getAccountsDetailed:', error);
       return [];

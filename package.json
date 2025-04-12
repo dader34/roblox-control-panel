@@ -4,28 +4,29 @@
     "description": "A control panel for managing Roblox accounts and instances",
     "main": "server/index.js",
     "scripts": {
-      "start": "node server/index.js",
-      "dev": "nodemon server/index.js",
-      "test": "echo \"Error: no test specified\" && exit 1",
-      "build": "cd client && npm run build"
+        "start": "node server/index.js",
+        "dev": "nodemon server/index.js",
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "build": "cd client && npm run build"
     },
     "keywords": [
-      "roblox",
-      "control-panel",
-      "game-automation"
+        "roblox",
+        "control-panel",
+        "game-automation"
     ],
     "author": "",
     "license": "ISC",
     "dependencies": {
-      "cors": "^2.8.5",
-      "express": "^4.18.2",
-      "http-proxy-middleware": "^2.0.6",
-      "uuid": "^9.0.1",
-      "ws": "^8.16.0",
-      "puppeteer": "^21.3.8",
-      "user-agents": "^1.1.0"
+        "cors": "^2.8.5",
+        "express": "^4.18.2",
+        "http-proxy-middleware": "^2.0.6",
+        "puppeteer": "^21.3.8",
+        "react-scripts": "^5.0.1",
+        "user-agents": "^1.1.0",
+        "uuid": "^9.0.1",
+        "ws": "^8.16.0"
     },
     "devDependencies": {
-      "nodemon": "^3.0.2"
+        "nodemon": "^3.0.2"
     }
-  }
+}

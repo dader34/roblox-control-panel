@@ -16,7 +16,7 @@ const AccountList = ()  => {
         const accountsData = await getAccountsDetailed();
         console.log('Accounts data:', accountsData);
         console.log(Array.isArray(accountsData))
-        
+        console.log(accountsData)
         if (Array.isArray(accountsData) && accountsData.length > 0) {
           // Process accounts data
           const processedAccounts = accountsData.map(account => ({
@@ -75,7 +75,7 @@ const AccountList = ()  => {
     try {
       setLoading(true);
       const result = await launchAccount(selectedAccount.Username, placeId);
-      setSuccessMessage(`Successfully launched: ${result}`);
+      setSuccessMessage(`Successfully launched: ${result.account}`);
       setPlaceId('');
     } catch (error) {
       console.error('Error launching account:', error);

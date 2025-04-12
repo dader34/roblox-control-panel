@@ -7,6 +7,7 @@ const httpUtils = require('../utils/httpUtils');
 const processService = require('../services/processService');
 const webSocketService = require('../services/webSocketService');
 const serverBrowserService = require('../services/serverBrowserService');
+const platformService = require('../services/platformService')
 const config = require('../../config');
 
 /**
@@ -46,7 +47,9 @@ function launchAccount(req, res) {
         message: 'Launch request processed',
         account: account,
         placeId: placeId,
-        jobId: jobId || 'None'
+        jobId: jobId || 'None',
+        platform: platformService.PLATFORM_MODE
+
       });
     });
   }).on('error', (err) => {
