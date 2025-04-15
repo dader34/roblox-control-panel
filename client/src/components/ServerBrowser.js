@@ -1,7 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { getServers, launchAccount, launchMultipleAccounts, setServer } from '../services/api';
+import { 
+  Search, 
+  Server, 
+  Users, 
+  AlertTriangle, 
+  Check, 
+  RefreshCw, 
+  Play, 
+  Zap, 
+  Clock, 
+  Radio,
+  CheckSquare,
+  Square,
+  Sliders,
+  Terminal
+} from 'react-feather';
 
-function ServerBrowser({ placeId, accounts, onAction, disabled }) {
+const ServerBrowser = ({ placeId, accounts, onAction, disabled, darkMode }) => {
   const [servers, setServers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -139,161 +155,304 @@ function ServerBrowser({ placeId, accounts, onAction, disabled }) {
   };
 
   return (
-    <div className="server-browser">
-      <div className="browser-controls">
-        <div className="form-group">
-          <label htmlFor="pageCount">Page Count:</label>
-          <select
-            id="pageCount"
-            className="form-control"
-            value={pageCount}
-            onChange={(e) => setPageCount(parseInt(e.target.value))}
-            disabled={loading || disabled}
-          >
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="5">5</option>
-          </select>
+    <div className="space-y-6 w-full">
+      {/* Search Controls */}
+      <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>
+        <div className="flex items-center mb-4">
+          <Search className="text-purple-500 mr-2" size={20} />
+          <h2 className="text-xl font-bold">Server Finder</h2>
         </div>
         
-        <div className="form-group">
-          <label>
-            <input
-              type="checkbox"
-              checked={sortLowest}
-              onChange={() => setSortLowest(!sortLowest)}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div>
+            <label htmlFor="pageCount" className="block text-sm font-medium mb-1">Page Count</label>
+            <select
+              id="pageCount"
+              className={`w-full p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white bg-opacity-50'} backdrop-blur-sm border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-purple-500 focus:border-transparent appearance-none`}
+              value={pageCount}
+              onChange={(e) => setPageCount(parseInt(e.target.value))}
               disabled={loading || disabled}
-            />
-            Show lowest populated servers first
-          </label>
+            >
+              <option value="1">1 Page</option>
+              <option value="2">2 Pages</option>
+              <option value="3">3 Pages</option>
+              <option value="5">5 Pages</option>
+            </select>
+          </div>
+          
+          <div className="md:col-span-2">
+            <label className="flex items-center space-x-2 select-none h-full pt-6">
+              <div className={`w-5 h-5 flex items-center justify-center rounded ${darkMode ? 'border border-gray-500' : 'border border-gray-400'}`}>
+                <input
+                  type="checkbox"
+                  className="opacity-0 absolute"
+                  checked={sortLowest}
+                  onChange={() => setSortLowest(!sortLowest)}
+                  disabled={loading || disabled}
+                />
+                {sortLowest && <Check size={16} className="text-purple-500" />}
+              </div>
+              <span className="text-sm">Show lowest populated servers first</span>
+            </label>
+          </div>
+          
+          <div className="flex items-end">
+            <button
+              className={`w-full px-4 py-2 rounded-lg font-medium flex items-center justify-center ${
+                loading || !placeId || disabled
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:opacity-90'
+              }`}
+              onClick={fetchServers}
+              disabled={loading || !placeId || disabled}
+            >
+              {loading ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <Search size={16} className="mr-2" />
+                  Find Servers
+                </>
+              )}
+            </button>
+          </div>
         </div>
         
-        <button
-          className="btn btn-primary"
-          onClick={fetchServers}
-          disabled={loading || !placeId || disabled}
-        >
-          {loading ? 'Loading...' : 'Find Servers'}
-        </button>
+        {error && (
+          <div className="p-3 rounded-lg bg-red-100 border border-red-400 text-red-700 flex items-start">
+            <AlertTriangle className="flex-shrink-0 mr-2 mt-0.5" size={16} />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
       
-      {error && <div className="alert alert-danger">{error}</div>}
-      
+      {/* Server List */}
       {servers.length > 0 && !joinDifferentServers && (
-        <div className="server-list">
-          <h4>Available Servers ({servers.length})</h4>
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Select</th>
-                  <th>Players</th>
-                  <th>Capacity</th>
-                  <th>Ping</th>
-                  <th>FPS</th>
-                  <th>Server ID</th>
-                </tr>
-              </thead>
-              <tbody>
-                {servers.map((server) => (
-                  <tr
-                    key={server.id}
-                    className={selectedServer?.id === server.id ? 'selected' : ''}
-                    onClick={() => setSelectedServer(server)}
-                  >
-                    <td>
-                      <input
-                        type="radio"
-                        name="serverSelect"
-                        checked={selectedServer?.id === server.id}
-                        onChange={() => setSelectedServer(server)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </td>
-                    <td>{server.playing}</td>
-                    <td>{server.maxPlayers}</td>
-                    <td>{server.ping}</td>
-                    <td>{server.fps}</td>
-                    <td>{server.id.substring(0, 8)}...</td>
+        <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <Server className="text-purple-500 mr-2" size={20} />
+              <h2 className="text-xl font-bold">Available Servers</h2>
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                {servers.length}
+              </span>
+            </div>
+          </div>
+          
+          <div className={`rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} backdrop-blur-sm overflow-hidden`}>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className={darkMode ? 'bg-gray-800 bg-opacity-50' : 'bg-gray-50 bg-opacity-50'}>
+                  <tr>
+                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider w-10"></th>
+                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider">Players</th>
+                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider">Capacity</th>
+                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider">Ping</th>
+                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider">FPS</th>
+                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider">Server ID</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {servers.map((server) => (
+                    <tr
+                      key={server.id}
+                      className={`cursor-pointer transition-colors ${
+                        selectedServer?.id === server.id 
+                          ? (darkMode ? 'bg-purple-900 bg-opacity-30' : 'bg-purple-100') 
+                          : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                      onClick={() => setSelectedServer(server)}
+                    >
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <div className="flex justify-center">
+                          <div className={`w-5 h-5 rounded-full border ${selectedServer?.id === server.id ? 'border-purple-500' : 'border-gray-300 dark:border-gray-600'} flex items-center justify-center`}>
+                            {selectedServer?.id === server.id && (
+                              <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <Users size={14} className="mr-2 text-blue-500" />
+                          <span>{server.playing}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              server.playing / server.maxPlayers > 0.8 
+                                ? 'bg-red-500' 
+                                : server.playing / server.maxPlayers > 0.5 
+                                  ? 'bg-yellow-500' 
+                                  : 'bg-green-500'
+                            }`}
+                            style={{ width: `${(server.playing / server.maxPlayers) * 100}%` }}
+                          ></div>
+                        </div>
+                        <div className="text-xs mt-1 text-center">
+                          {server.playing}/{server.maxPlayers}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <Clock size={14} className="mr-2 text-green-500" />
+                          <span>{server.ping}ms</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <Zap size={14} className="mr-2 text-yellow-500" />
+                          <span>{server.fps}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap font-mono text-xs">
+                        {server.id.substring(0, 8)}...
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
       
+      {/* Account Selection */}
       {accounts.length > 0 && (
-        <div className="account-selection">
-          <h4>Select Accounts to Launch</h4>
-          
-          <div className="form-group join-options">
-            <label>
-              <input
-                type="checkbox"
-                checked={joinDifferentServers}
-                onChange={() => setJoinDifferentServers(!joinDifferentServers)}
-                disabled={loading || disabled}
-              />
-              Join Different Servers (each account will join a different server)
-            </label>
-            {joinDifferentServers && (
-              <div className="different-servers-notice">
-                <small>
-                  <strong>Note:</strong> When enabled, accounts will be assigned to different servers automatically. 
-                  You don't need to select a specific server.
-                </small>
-              </div>
-            )}
+        <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <Users className="text-purple-500 mr-2" size={20} />
+              <h2 className="text-xl font-bold">Account Selection</h2>
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                {selectedAccounts.length}/{accounts.length}
+              </span>
+            </div>
           </div>
           
-          <div className="select-controls">
+          <div className="mb-4">
+            <label className="flex items-center space-x-2 p-3 rounded-lg">
+              <div className={`w-5 h-5 flex items-center justify-center rounded ${darkMode ? 'border border-yellow-500' : 'border border-yellow-400'}`}>
+                <input
+                  type="checkbox"
+                  className="opacity-0 absolute"
+                  checked={joinDifferentServers}
+                  onChange={() => setJoinDifferentServers(!joinDifferentServers)}
+                  disabled={loading || disabled}
+                />
+                {joinDifferentServers && <Check size={16} className="text-yellow-500" />}
+              </div>
+              <div className="flex flex-col">
+                <span className="font-medium">Join Different Servers</span>
+                <span className="text-xs text-yellow-700 dark:text-yellow-300">
+                  Each account will join a different server automatically - no need to select a specific server
+                </span>
+              </div>
+            </label>
+          </div>
+          
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
             <button
-              className="btn btn-sm btn-secondary"
+              className={`flex items-center px-4 py-2 rounded-lg text-sm border ${
+                darkMode 
+                  ? 'border-gray-600 hover:bg-gray-700 text-white' 
+                  : 'border-purple-300 hover:bg-purple-50 text-purple-700'
+              }`}
               onClick={toggleAllAccounts}
               disabled={loading || disabled}
             >
-              {selectedAccounts.length === accounts.length ? 'Deselect All' : 'Select All'}
+              {selectedAccounts.length === accounts.length ? (
+                <>
+                  <Square size={16} className="mr-2" />
+                  Deselect All
+                </>
+              ) : (
+                <>
+                  <CheckSquare size={16} className="mr-2" />
+                  Select All
+                </>
+              )}
             </button>
             
             <button
-              className="btn btn-sm btn-primary"
+              className={`flex items-center px-4 py-2 rounded-lg font-medium ${
+                loading || selectedAccounts.length === 0 || (!joinDifferentServers && !selectedServer) || disabled
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:opacity-90'
+              }`}
               onClick={launchSelectedAccounts}
               disabled={loading || selectedAccounts.length === 0 || (!joinDifferentServers && !selectedServer) || disabled}
             >
+              <Play size={16} className="mr-2" />
               Launch Selected ({selectedAccounts.length})
             </button>
           </div>
           
-          <div className="account-list">
-            <div className="table-container">
-              <table>
-                <thead>
+          <div className={`rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} backdrop-blur-sm overflow-hidden`}>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className={darkMode ? 'bg-gray-800 bg-opacity-50' : 'bg-gray-50 bg-opacity-50'}>
                   <tr>
-                    <th>Select</th>
-                    <th>Account</th>
-                    <th>Actions</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider w-10"></th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Account</th>
+                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {accounts.map((account) => (
-                    <tr key={account}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedAccounts.includes(account)}
-                          onChange={() => toggleAccountSelection(account)}
-                          disabled={loading || disabled}
-                        />
+                    <tr 
+                      key={account} 
+                      className={`transition-colors ${
+                        selectedAccounts.includes(account)
+                          ? (darkMode ? 'bg-purple-900 bg-opacity-20' : 'bg-purple-50')
+                          : ''
+                      }`}
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div 
+                          className={`w-5 h-5 flex items-center justify-center rounded ${
+                            darkMode 
+                              ? 'border border-gray-500' 
+                              : 'border border-gray-400'
+                          } cursor-pointer`}
+                          onClick={() => toggleAccountSelection(account)}
+                        >
+                          {/* <input
+                            type="checkbox"
+                            className="opacity-0 absolute"
+                            checked={selectedAccounts.includes(account)}
+                            onChange={() => toggleAccountSelection(account)}
+                            disabled={loading || disabled}
+                          /> */}
+                          {selectedAccounts.includes(account) && (
+                            <Check size={16} className="text-purple-500" />
+                          )}
+                        </div>
                       </td>
-                      <td>{account}</td>
-                      <td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="h-8 w-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center mr-3">
+                            <Terminal className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                          </div>
+                          <span className="font-medium">{account}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-right">
                         <button
-                          className="btn btn-sm btn-primary"
+                          className={`inline-flex items-center px-3 py-1 rounded text-xs ${
+                            loading || disabled || !selectedServer
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-200 dark:hover:bg-purple-800'
+                          }`}
                           onClick={() => launchSingleAccount(account)}
                           disabled={loading || disabled || !selectedServer}
                         >
+                          <Play size={12} className="mr-1" />
                           Launch
                         </button>
                       </td>
@@ -307,6 +466,6 @@ function ServerBrowser({ placeId, accounts, onAction, disabled }) {
       )}
     </div>
   );
-}
+};
 
 export default ServerBrowser;

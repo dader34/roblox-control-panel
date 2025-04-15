@@ -86,7 +86,7 @@ local function getBankMoney()
     pcall(function()
         local unformattedBankMoney = bankMoneyLocation:FindFirstChildOfClass('Frame'):FindFirstChildOfClass('Frame')
                                          :FindFirstChild('Options'):FindFirstChildOfClass('TextLabel').text
-        bankMoney = string.sub(unformattedBankMoney, 16)
+        bankMoney = string.sub(unformattedBankMoney, 15)
     end)
     return bankMoney
 end

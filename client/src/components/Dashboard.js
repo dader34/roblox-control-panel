@@ -1,40 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { getAccounts, getProcesses, launchAccount, setRecommendedServer, getGameData } from '../services/api';
 import ServerBrowser from './ServerBrowser';
-
-// SVG icons as components
-const RefreshIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M23 4v6h-6"></path>
-    <path d="M1 20v-6h6"></path>
-    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-  </svg>
-);
-
-const ChevronDownIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="6 9 12 15 18 9"></polyline>
-  </svg>
-);
-
-const ChevronUpIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="18 15 12 9 6 15"></polyline>
-  </svg>
-);
-
-const TerminalIcon = () => (
-  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="4 17 10 11 4 5"></polyline>
-    <line x1="12" y1="19" x2="20" y2="19"></line>
-  </svg>
-);
-
-const CommandIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"></path>
-  </svg>
-);
+import '../styles/Dashboard.css'
+import {
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Terminal,
+  Clipboard,
+  Award,
+  Zap,
+  Activity,
+  Server,
+  Users,
+  Database,
+  Eye,
+  EyeOff,
+  Play
+} from 'react-feather';
 
 const Dashboard = () => {
   const [accounts, setAccounts] = useState([]);
@@ -51,6 +34,7 @@ const Dashboard = () => {
   const [totalBankMoney, setTotalBankMoney] = useState(0);
   const [showMonitoringScript, setShowMonitoringScript] = useState(false);
   const [connectedAccounts, setConnectedAccounts] = useState(0);
+  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -229,11 +213,11 @@ const Dashboard = () => {
     const percentage = (health / maxHealth) * 100;
 
     if (percentage > 66) {
-      return '#34c759'; // iOS green
+      return '#10b981'; // emerald-500
     } else if (percentage > 33) {
-      return '#ff9500'; // iOS orange
+      return '#f59e0b'; // amber-500
     } else {
-      return '#ff3b30'; // iOS red
+      return '#ef4444'; // red-500
     }
   };
 
@@ -241,11 +225,11 @@ const Dashboard = () => {
   const getStatusColor = (data) => {
     // If the account has a status property set to warning or inactive
     if (data.status === 'warning') {
-      return 'var(--warning-color, #ff9500)'; // Yellow/orange for warning status
+      return '#f59e0b'; // amber-500
     } else if (data.status === 'inactive') {
-      return 'var(--danger-color, #ff3b30)'; // Red for inactive status
+      return '#ef4444'; // red-500
     } else {
-      return 'var(--success-color, #34c759)'; // Green for connected/active status
+      return '#10b981'; // emerald-500
     }
   };
 
@@ -280,542 +264,310 @@ const Dashboard = () => {
   // Calculate grand total (pocket + bank)
   const grandTotal = totalMoney + totalBankMoney;
 
-  const monitoringScript = `
--- Roblox Player Monitoring and Remote Script Execution
--- This script monitors player stats and enables remote script execution via WebSocket
-wait(10)
-print('Starting load')
+  const monitoringScript = `-- Example monitoring script
+local WebSocketService = require(game:GetService("ReplicatedStorage").WebSocketService)
 
--- Initialize variables
-local player = game.Players.LocalPlayer
-local playerGui = player.PlayerGui
-local HttpService = game:GetService("HttpService")
-local serverUrl = "http://localhost:3000"
-local wsUrl = "ws://localhost:3000"
-
--- Configuration
-local PING_INTERVAL = 15 -- seconds (reduced from 30 for faster connection detection)
-local HEALTH_CHANGE_THRESHOLD = 0.01 -- 1% of max health
-local MAX_RECONNECT_ATTEMPTS = 15 -- increased from 10
-local RECONNECT_DELAY = 3 -- seconds (reduced from 5 for quicker reconnection)
-local UPDATE_INTERVAL = 10 -- seconds
-local INITIAL_CONNECT_DELAY = 5 -- seconds to wait before first connection attempt
-
--- State tracking
-local bankMoneyLocation = nil
-local lastHealth = 0
-local ws = nil
-local connected = false
-local reconnectAttempts = 0
-local lastPingTime = 0
-local lastServerResponse = 0
-local connectionActive = false -- Tracks if we have an active server connection
-local wasEverConnected = false -- Tracks if we've ever had a successful connection
-
--- Find the bank money UI element (specific to Block Spin)
-local function findBankMoneyLocation()
-    for _, v in pairs(playerGui:GetChildren()) do
-        local firstLetter = string.sub(v.Name, 0, 1)
-        if tonumber(firstLetter) then
-            print("Found bank money location: " .. v.Name)
-            return v
-        end
-    end
-    warn("Could not find bank money location")
-    return nil
+local function sendData()
+  local player = game.Players.LocalPlayer
+  local character = player.Character or player.CharacterAdded:Wait()
+  local humanoid = character:WaitForChild("Humanoid")
+  
+  local playerData = {
+    playerName = player.Name,
+    displayName = player.DisplayName,
+    money = player.leaderstats.Money.Value,
+    bankMoney = player.leaderstats.BankMoney.Value,
+    health = humanoid.Health,
+    maxHealth = humanoid.MaxHealth,
+    level = player.leaderstats.Level.Value,
+    position = tostring(character:GetPrimaryPartCFrame().Position)
+  }
+  
+  WebSocketService:SendData(playerData)
 end
 
--- Extract player stats
-local function getPlayerStats()
-    -- Get health data
-    local health = 0
-    local maxHealth = 0
-    if player.Character and player.Character:FindFirstChild("Humanoid") then
-        health = player.Character.Humanoid.Health
-        maxHealth = player.Character.Humanoid.MaxHealth
-    end
-
-    -- Get level data
-    local level = "0"
-    pcall(function()
-        level = player.PlayerGui.LevelUp.Frame.LevelCardHolder.LevelCard.TextLabel.text
-    end)
-
-    -- Get position
-    local position = "0, 0, 0"
-    pcall(function()
-        position = tostring(player.Character and player.Character:GetPrimaryPartCFrame().Position or
-                                Vector3.new(0, 0, 0))
-    end)
-
-    return {
-        playerName = player.Name,
-        displayName = player.DisplayName,
-        position = position,
-        health = health,
-        maxHealth = maxHealth,
-        level = level
-    }
-end
-
--- Get bank money amount
-local function getBankMoney()
-    if not bankMoneyLocation then
-        print('Bank money location not found')
-        return "0"
-    end
-
-    local bankMoney = "0"
-    pcall(function()
-        local unformattedBankMoney = bankMoneyLocation:FindFirstChildOfClass('Frame'):FindFirstChildOfClass('Frame')
-                                         :FindFirstChild('Options'):FindFirstChildOfClass('TextLabel').text
-        bankMoney = string.sub(unformattedBankMoney, 16)
-    end)
-    return bankMoney
-end
-
-print("Player name: " .. player.Name)
-
--- Get pocket money amount
-local function getPocketMoney()
-    local money = "0"
-    pcall(function()
-        money = player.PlayerGui.TopRightHud.Holder.Frame.MoneyTextLabel.text
-    end)
-    return money
-end
-
--- Send game data to server
--- Only send meaningful updates if WebSocket is connected
-function sendGameData()
-    local otherData = getPlayerStats()
-
-    local data = {
-        accountName = player.Name,
-        money = getPocketMoney(),
-        bankMoney = getBankMoney(),
-        placeId = game.PlaceId,
-        otherData = otherData,
-        hasWebSocket = connected -- Send current WebSocket status
-    }
-
-    -- Create and send HTTP request
-    local encodedData = HttpService:JSONEncode(data)
-    local request = {
-        Url = serverUrl .. '/api/gameData',
-        Method = 'POST',
-        Headers = {
-            ['Content-Type'] = 'application/json'
-        },
-        Body = encodedData
-    }
-
-    local success = pcall(function()
-        http_request(request)
-    end)
-
-    if success then
-        print("Sent game data with WebSocket status: " .. tostring(connected))
-    else
-        warn("Failed to send game data")
-    end
-
-    -- Update last health
-    lastHealth = otherData.health
-end
-
--- Send leave notification to server
-local function sendLeaveNotification()
-    local leaveData = {
-        accountName = player.Name
-    }
-
-    local encodedData = HttpService:JSONEncode(leaveData)
-    local request = {
-        Url = serverUrl .. '/api/leaveGame',
-        Method = 'POST',
-        Headers = {
-            ['Content-Type'] = 'application/json'
-        },
-        Body = encodedData
-    }
-
-    pcall(function()
-        http_request(request)
-        print("Sent leave notification")
-    end)
-end
-
--- Check if the server is available
-local function isServerAvailable()
-    local success = pcall(function()
-        local request = {
-            Url = serverUrl .. '/health',
-            Method = 'GET'
-        }
-        http_request(request)
-    end)
-
-    return success
-end
-
--- WebSocket Functions
-local function setupWebSocket()
-    if not WebSocket then
-        warn("WebSocket is not available in this Roblox environment")
-        return false
-    end
-
-    -- First check if the server is available before attempting to connect
-    if not isServerAvailable() then
-        warn("Server not available. Will retry later.")
-        return false
-    end
-
-    print("Attempting to connect to WebSocket server at " .. wsUrl)
-
-    local success = pcall(function()
-        -- Connect to WebSocket server
-        ws = WebSocket.connect(wsUrl)
-
-        -- Handle received messages
-        ws.OnMessage:Connect(function(message)
-            local success, data = pcall(function()
-                return HttpService:JSONDecode(message)
-            end)
-
-            if not success then
-                warn("Failed to decode WebSocket message")
-                return
-            end
-
-            -- Update last server response time
-            lastServerResponse = tick()
-
-            -- Handle message types
-            if data.type == "init_ack" then
-                print("WebSocket connection initialized and acknowledged by server")
-                connected = true
-                wasEverConnected = true
-                reconnectAttempts = 0
-
-                -- Immediately send a game data update to ensure server has latest info
-                sendGameData()
-
-            elseif data.type == "execute" then
-                print("Executing script: " .. data.execId)
-
-                -- Execute the script and capture result
-                local execSuccess, execResult = pcall(function()
-                    return loadstring(data.script)()
-                end)
-
-                -- Send result back to server
-                ws:Send(HttpService:JSONEncode({
-                    type = "exec_result",
-                    execId = data.execId,
-                    success = execSuccess,
-                    result = execSuccess and (tostring(execResult) or "Script executed successfully") or nil,
-                    error = not execSuccess and tostring(execResult) or nil,
-                    script = data.script:sub(1, 100) .. (data.script:len() > 100 and "..." or "")
-                }))
-
-                if execSuccess then
-                    print("Script executed successfully")
-                else
-                    warn("Script execution failed:", execResult)
-                end
-            elseif data.type == "pong" then
-                -- Heartbeat response received, reset the ping timer
-                lastPingTime = tick()
-            elseif data.type == "error" then
-                warn("Server reported error:", data.message)
-            end
-        end)
-
-        -- Handle connection close
-        ws.OnClose:Connect(function()
-            print("WebSocket connection closed")
-            connected = false
-
-            -- Send update to server to indicate lost connection
-            pcall(function()
-                local data = {
-                    accountName = player.Name,
-                    hasWebSocket = false
-                }
-
-                local request = {
-                    Url = serverUrl .. '/api/gameData',
-                    Method = 'POST',
-                    Headers = {
-                        ['Content-Type'] = 'application/json'
-                    },
-                    Body = HttpService:JSONEncode(data)
-                }
-
-                http_request(request)
-                print("Notified server of disconnection")
-            end)
-
-            -- Try to reconnect with exponential backoff
-            if reconnectAttempts < MAX_RECONNECT_ATTEMPTS then
-                reconnectAttempts = reconnectAttempts + 1
-                local delay = RECONNECT_DELAY * math.min(reconnectAttempts, 5) -- Cap the delay growth
-
-                print("WebSocket closed. Reconnecting in " .. delay .. " seconds (attempt " .. reconnectAttempts .. ")")
-                wait(delay)
-                setupWebSocket()
-            else
-                warn("Failed to reconnect WebSocket after " .. MAX_RECONNECT_ATTEMPTS .. " attempts")
-
-                -- Reset reconnect attempts after waiting a longer period
-                wait(60)
-                reconnectAttempts = 0
-                print("Resetting reconnect attempts and trying again")
-                setupWebSocket()
-            end
-        end)
-
-        -- Send initialization message
-        local initMessage = HttpService:JSONEncode({
-            type = "init",
-            accountName = player.Name,
-            placeId = game.PlaceId
-        })
-        ws:Send(initMessage)
-
-        print("Sent WebSocket initialization message")
-    end)
-
-    if not success then
-        warn("Failed to setup WebSocket")
-        return false
-    end
-
-    return true
-end
-
--- Send ping to keep WebSocket alive and check server connection status
-local function pingWebSocket()
-    if ws and connected then
-        local currentTime = tick()
-
-        -- Check if we've received a response recently
-        if currentTime - lastServerResponse > PING_INTERVAL * 2 then
-            print("No response from server for too long. Closing connection to force reconnect.")
-            pcall(function()
-                ws:Close()
-            end)
-            connected = false
-            return
-        end
-
-        -- Send regular ping
-        if currentTime - lastPingTime > PING_INTERVAL then
-            local pingSuccess = pcall(function()
-                ws:Send(HttpService:JSONEncode({
-                    type = "ping",
-                    timestamp = currentTime
-                }))
-            end)
-
-            if pingSuccess then
-                lastPingTime = currentTime
-            else
-                warn("Failed to send ping, connection may be lost")
-                -- Force reconnection if ping fails
-                pcall(function()
-                    ws:Close()
-                end)
-                connected = false
-            end
-        end
-    elseif not ws or not connected then
-        -- If we're not connected, try to connect periodically
-        if not wasEverConnected or tick() % 30 < 1 then -- Try every 30 seconds if never connected
-            print("Not connected to WebSocket, attempting to connect...")
-            setupWebSocket()
-        end
-    end
-end
-
--- Handle health changes
-local function monitorHealth(humanoid)
-    humanoid.HealthChanged:Connect(function(newHealth)
-        local healthDecrease = lastHealth - newHealth
-        local significantChange = healthDecrease > (humanoid.MaxHealth * HEALTH_CHANGE_THRESHOLD)
-
-        if significantChange and healthDecrease > 0 and connected then
-            print("Health dropped by " .. healthDecrease .. ", sending update")
-            sendGameData()
-        end
-    end)
-end
-
--- Setup health monitoring
-local function setupHealthMonitoring()
-    -- Monitor current character
-    if player.Character and player.Character:FindFirstChild("Humanoid") then
-        lastHealth = player.Character.Humanoid.Health
-        monitorHealth(player.Character.Humanoid)
-    end
-
-    -- Monitor future characters (respawns)
-    player.CharacterAdded:Connect(function(character)
-        local humanoid = character:WaitForChild("Humanoid")
-        lastHealth = humanoid.Health
-        monitorHealth(humanoid)
-    end)
-end
-
--- Setup game closing detection
-local function setupGameClosingDetection()
-    -- Instead of BindToClose, use the CoreGui error prompt detection
-    if game:GetService("CoreGui"):FindFirstChild("RobloxPromptGui") then
-        game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
-            if child.Name == "ErrorPrompt" or child.Name == "LeavePrompt" then
-                print("Error/Leave prompt detected, sending leave notification")
-                if ws and connected then
-                    pcall(function()
-                        ws:Close()
-                    end)
-                end
-                sendLeaveNotification()
-            end
-        end)
-    end
-
-    -- Also detect player removal
-    player.AncestryChanged:Connect(function(_, newParent)
-        if newParent == nil then
-            print("Player being removed from game, sending leave notification")
-            if ws and connected then
-                pcall(function()
-                    ws:Close()
-                end)
-            end
-            sendLeaveNotification()
-        end
-    end)
-
-    -- Detect when player is about to remove from game
-    game.Players.PlayerRemoving:Connect(function(plr)
-        if plr == player then
-            print("Player leaving game, sending leave notification")
-            if ws and connected then
-                pcall(function()
-                    ws:Close()
-                end)
-            end
-            sendLeaveNotification()
-        end
-    end)
-end
-
--- Main initialization
-spawn(function()
-    -- Wait a moment for the game to fully load
-    wait(INITIAL_CONNECT_DELAY)
-    if game.placeId == 104715542330896 then
-
-        -- Find bank money UI elements if needed for this game
-        bankMoneyLocation = findBankMoneyLocation()
-
-        -- Setup health monitoring
-        setupHealthMonitoring()
-
-        -- Setup game closing detection
-        setupGameClosingDetection()
-
-        ---- Initial WebSocket setup
-        setupWebSocket()
-
-        -- Periodic updates loop
-        while wait(1) do
-            -- Check WebSocket connection frequently
-            pingWebSocket()
-
-            -- Send periodic updates if connected
-            if connected and tick() % UPDATE_INTERVAL < 1 then
-                sendGameData()
-            end
-        end
-    end
-end)`;
+-- Send data every 5 seconds
+while wait(5) do
+  pcall(sendData)
+end`;
 
   if (loading && accounts.length === 0) {
     return (
-      <div className="dashboard-loading">
-        <div className="loading-spinner"></div>
-        <p>Loading dashboard data...</p>
+      <div className="flex h-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-purple-500"></div>
+        <p className="ml-4 text-xl">Loading dashboard data...</p>
       </div>
     );
   }
 
   return (
-    <div className="dashboard">
-      {/* Quick Launch Card */}
-      <div className="dashboard-card glass-card">
-        <h3>Quick Launch</h3>
-        {error && <div className="alert alert-danger">{error}</div>}
-        {successMessage && <div className="alert alert-success">{successMessage}</div>}
-        <form onSubmit={handleLaunch}>
-          <div className="form-group">
-            <label htmlFor="account">Account</label>
-            <div className="select-wrapper">
-              <select
-                id="account"
-                className="form-control"
-                value={selectedAccount}
-                onChange={(e) => setSelectedAccount(e.target.value)}
-                disabled={loading}
-              >
-                {accounts.map((account) => (
-                  <option key={account} value={account}>
-                    {account}
-                  </option>
-                ))}
-              </select>
+    <div className={`min-h-screen p-6 ${darkMode ? 'dark-mode bg-gray-900 text-white' : 'light-mode bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 text-gray-800'}`}>
+      {/* Header with Theme Toggle */}
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">
+          Roblox Manager Dashboard
+        </h1>
+        {/* <button
+          onClick={() => setDarkMode(!darkMode)}
+          className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+        >
+          {darkMode ? (
+            <span role="img" aria-label="Light Mode" className="text-xl">🌞</span>
+          ) : (
+            <span role="img" aria-label="Dark Mode" className="text-xl">🌙</span>
+          )}
+        </button> */}
+      </div>
+
+      {/* Alert Messages */}
+      {error && (
+        <div className="mb-4 p-4 rounded-lg bg-red-100 border border-red-400 text-red-700 relative" role="alert">
+          <strong className="font-bold">Error! </strong>
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+      {successMessage && (
+        <div className="mb-4 p-4 rounded-lg bg-green-100 border border-green-400 text-green-700 relative" role="alert">
+          <strong className="font-bold">Success! </strong>
+          <span className="block sm:inline">{successMessage}</span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Stats Overview */}
+        <div className={`col-span-1 lg:col-span-3 rounded-xl p-6 ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Pocket Money */}
+            <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} backdrop-blur-sm shadow-md flex items-center`}>
+              <div className="rounded-full p-3 bg-purple-100 text-purple-600 mr-4">
+                <Database size={24} />
+              </div>
+              <div>
+                <p className="text-sm opacity-70">Pocket Money</p>
+                <h3 className="text-2xl font-bold">${formatMoney(totalMoney)}</h3>
+              </div>
+            </div>
+
+            {/* Bank Money */}
+            <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} backdrop-blur-sm shadow-md flex items-center`}>
+              <div className="rounded-full p-3 bg-blue-100 text-blue-600 mr-4">
+                <Server size={24} />
+              </div>
+              <div>
+                <p className="text-sm opacity-70">Bank Money</p>
+                <h3 className="text-2xl font-bold">${formatMoney(totalBankMoney)}</h3>
+              </div>
+            </div>
+
+            {/* Grand Total */}
+            <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} backdrop-blur-sm shadow-md flex items-center`}>
+              <div className="rounded-full p-3 bg-green-100 text-green-600 mr-4">
+                <Award size={24} />
+              </div>
+              <div>
+                <p className="text-sm opacity-70">Grand Total</p>
+                <h3 className="text-2xl font-bold">${formatMoney(grandTotal)}</h3>
+              </div>
             </div>
           </div>
-          <div className="form-group">
-            <label htmlFor="placeId">Place ID</label>
-            <input
-              type="text"
-              id="placeId"
-              className="form-control"
-              value={placeId}
-              onChange={(e) => setPlaceId(e.target.value)}
-              placeholder="Enter Roblox Place ID"
-              disabled={loading}
-            />
-          </div>
-          <div className="form-group button-group">
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading || !selectedAccount || !placeId}
-            >
-              {loading ? 'Launching...' : 'Launch Game'}
-            </button>
+        </div>
 
+        {/* Quick Launch Card */}
+        <div className={`rounded-xl p-6 ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>
+          <div className="flex items-center mb-4">
+            <Play className="text-purple-500 mr-2" size={20} />
+            <h2 className="text-xl font-bold">Quick Launch</h2>
+          </div>
+
+          <form onSubmit={handleLaunch} className="space-y-4">
+            <div>
+              <label htmlFor="account" className="block text-sm font-medium mb-1">Account</label>
+              <div className="relative">
+                <select
+                  id="account"
+                  className={`w-full p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white bg-opacity-50'} backdrop-blur-sm border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-purple-500 focus:border-transparent appearance-none`}
+                  value={selectedAccount}
+                  onChange={(e) => setSelectedAccount(e.target.value)}
+                  disabled={loading}
+                >
+                  {accounts.map((account) => (
+                    <option key={account} value={account}>{account}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="placeId" className="block text-sm font-medium mb-1">Place ID</label>
+              <input
+                type="text"
+                id="placeId"
+                className={`w-full p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white bg-opacity-50'} backdrop-blur-sm border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
+                value={placeId}
+                onChange={(e) => setPlaceId(e.target.value)}
+                placeholder="Enter Roblox Place ID"
+                disabled={loading}
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+              <button
+                type="submit"
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${loading || !selectedAccount || !placeId ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:opacity-90'}`}
+                disabled={loading || !selectedAccount || !placeId}
+              >
+                {loading ? 'Launching...' : 'Launch Game'}
+              </button>
+              <button
+                type="button"
+                className={`flex-1 px-4 py-2 rounded-lg font-medium border transition-colors ${darkMode ? 'border-gray-600 hover:bg-gray-700' : 'border-purple-300 hover:bg-purple-50'}`}
+                onClick={() => setShowServerBrowser(!showServerBrowser)}
+                disabled={!placeId}
+              >
+                {showServerBrowser ? 'Hide Server Browser' : 'Show Server Browser'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Monitoring Script Card */}
+        <div className={`rounded-xl p-6 ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center">
+              <Terminal className="text-purple-500 mr-2" size={20} />
+              <h2 className="text-xl font-bold">Monitoring Script</h2>
+            </div>
             <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setShowServerBrowser(!showServerBrowser)}
-              disabled={!placeId}
+              className={`flex items-center px-3 py-1 rounded-lg text-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-purple-50'} transition-colors`}
+              onClick={() => setShowMonitoringScript(!showMonitoringScript)}
             >
-              {showServerBrowser ? 'Hide Server Browser' : 'Show Server Browser'}
+              {showMonitoringScript ? <EyeOff size={16} className="mr-1" /> : <Eye size={16} className="mr-1" />}
+              {showMonitoringScript ? 'Hide Script' : 'Show Script'}
             </button>
           </div>
-        </form>
+
+          {showMonitoringScript && (
+            <div className="mt-4">
+              <div className="mb-4">
+                <p className="text-sm opacity-70">
+                  Run this script in your Roblox game to enable monitoring and data collection:
+                </p>
+              </div>
+
+              <div className="flex justify-end mb-2">
+                <button
+                  className="flex items-center px-3 py-1 rounded-lg text-sm bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:opacity-90"
+                  onClick={() => {
+                    navigator.clipboard.writeText(monitoringScript);
+                    setSuccessMessage("Script copied to clipboard!");
+                    setTimeout(() => setSuccessMessage(""), 3000);
+                  }}
+                >
+                  <Clipboard size={14} className="mr-1" />
+                  Copy to Clipboard
+                </button>
+              </div>
+
+              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-800'} overflow-auto`}>
+                <pre className="text-green-400 text-sm">
+                  {monitoringScript}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Active Instances */}
+        <div className={`rounded-xl p-6 ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <Activity className="text-purple-500 mr-2" size={20} />
+              <h2 className="text-xl font-bold">Active Instances</h2>
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                {processes.length}
+              </span>
+            </div>
+          </div>
+
+          {processes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Server size={48} className="text-gray-400 mb-3" />
+              <p className="text-gray-500">No Roblox instances currently running</p>
+            </div>
+          ) : (
+            <div className={`rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} backdrop-blur-sm overflow-hidden`}>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className={darkMode ? 'bg-gray-800 bg-opacity-50' : 'bg-gray-50 bg-opacity-50'}>
+                    <tr>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">PID</th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Account</th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Memory</th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {processes.map((process) => {
+                      // Find if this process has an account with a WebSocket connection
+                      const accountData = gameData.find(data => data.account === process.account);
+                      const hasWebSocket = accountData?.hasWebSocket || false;
+
+                      return (
+                        <tr key={process.pid} className={`
+                          ${accountData?.status === 'warning' ? 'bg-amber-50 dark:bg-amber-900 dark:bg-opacity-20' :
+                            accountData?.status === 'inactive' ? 'bg-red-50 dark:bg-red-900 dark:bg-opacity-20' : ''}
+                        `}>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">{process.pid}</td>
+                          {/* <td className="px-4 py-3 whitespace-nowrap text-sm">{process.account || 'Unknown'}</td> */}
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">{process.memoryUsage}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
+                            {process.account ? (
+                              hasWebSocket ? (
+                                (() => {
+                                  if (accountData) {
+                                    const statusColor = accountData.status === 'warning' ? 'bg-amber-500' :
+                                      accountData.status === 'inactive' ? 'bg-red-500' : 'bg-emerald-500';
+                                    return (
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor} text-white`}>
+                                        {getStatusLabel(accountData)}
+                                      </span>
+                                    );
+                                  } else {
+                                    return (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500 text-white">
+                                        Connected
+                                      </span>
+                                    );
+                                  }
+                                })()
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-500 text-white">
+                                  Disconnected
+                                </span>
+                              )
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-300 text-gray-800">
+                                Unknown
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Server Browser Card */}
       {showServerBrowser && (
-        <div className="dashboard-card glass-card server-browser-card">
-          <h3>Server Browser</h3>
+        <div className={`mt-6 rounded-xl p-6 ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>
+          <div className="flex items-center mb-4">
+            <Users className="text-purple-500 mr-2" size={20} />
+            <h2 className="text-xl font-bold">Server Browser</h2>
+          </div>
           <ServerBrowser
             placeId={placeId}
             accounts={accounts}
@@ -825,221 +577,149 @@ end)`;
         </div>
       )}
 
-      {/* Monitoring Script Card */}
-      <div className="dashboard-card glass-card script-card">
-        <div className="card-header">
-          <h3>Monitoring Script</h3>
-          <button
-            className="btn btn-sm btn-glass"
-            onClick={() => setShowMonitoringScript(!showMonitoringScript)}
-          >
-            {showMonitoringScript ? 'Hide Script ' : 'Show Script '}
-            {showMonitoringScript ? <ChevronUpIcon /> : <ChevronDownIcon />}
-          </button>
-        </div>
-
-        {showMonitoringScript && (
-          <div className="script-container">
-            <p className="script-instructions">
-              Run this script in your Roblox game to enable monitoring and data collection:
-            </p>
-            <div className="script-actions">
-              <button
-                className="btn btn-sm btn-glass-primary"
-                onClick={() => {
-                  navigator.clipboard.writeText(monitoringScript);
-                  setSuccessMessage("Script copied to clipboard!");
-                  setTimeout(() => setSuccessMessage(""), 3000);
-                }}
-              >
-                <CommandIcon />
-                Copy to Clipboard
-              </button>
-            </div>
-            <div className="lua-code-container">
-              <pre className="lua-code">
-                {monitoringScript}
-              </pre>
-            </div>
+      {/* Game Data Card */}
+      <div className={`mt-6 rounded-xl p-6 ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center">
+            <Zap className="text-purple-500 mr-2" size={20} />
+            <h2 className="text-xl font-bold">Game Data</h2>
+            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+              {connectedAccounts} connected
+            </span>
           </div>
-        )}
-      </div>
-
-      {/* Game Data Card with Money Stats */}
-      <div className="dashboard-card glass-card game-data-card">
-        <div className="card-header">
-          <h3>
-            Game Data
-            <span className="connected-count">{connectedAccounts} connected</span>
-          </h3>
           <button
-            className="btn btn-sm btn-glass"
+            className={`flex items-center px-3 py-1 rounded-lg text-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-purple-50'} transition-colors`}
             onClick={refreshGameData}
             disabled={loading}
           >
-            <RefreshIcon />
+            <RefreshCw size={14} className="mr-1" />
             Refresh
           </button>
         </div>
 
         {gameData.length === 0 ? (
-          <div className="no-data-message">
-            <TerminalIcon className="no-data-icon" />
-            <p>No accounts with active WebSocket connections</p>
-            <p className="no-data-hint">Run the monitoring script in your Roblox game to see data here</p>
+          <div className="flex flex-col items-center justify-center py-12">
+            <Terminal size={64} className="text-gray-400 mb-3" />
+            <p className="text-gray-500 font-medium mb-2">No accounts with active WebSocket connections</p>
+            <p className="text-gray-400 text-sm">Run the monitoring script in your Roblox game to see data here</p>
           </div>
         ) : (
-          <div>
-            {/* Money Stats Display */}
-            <div className="money-stats-container">
-              <div className="money-stats-grid">
-                {/* Pocket Money Card */}
-                <div className="money-stats-card">
-                  <div className="money-stats-icon pocket-icon">
-                    💰
-                  </div>
-                  <div className="money-stats-content">
-                    <div className="money-stats-label">Pocket Money</div>
-                    <div className="money-stats-value">${formatMoney(totalMoney)}</div>
-                  </div>
-                </div>
-
-                {/* Bank Money Card */}
-                <div className="money-stats-card">
-                  <div className="money-stats-icon bank-icon">
-                    🏦
-                  </div>
-                  <div className="money-stats-content">
-                    <div className="money-stats-label">Bank Money</div>
-                    <div className="money-stats-value">${formatMoney(totalBankMoney)}</div>
-                  </div>
-                </div>
-
-                {/* Total Money Card */}
-                <div className="money-stats-card total-card">
-                  <div className="money-stats-icon total-icon">
-                    💎
-                  </div>
-                  <div className="money-stats-content">
-                    <div className="money-stats-label">Grand Total</div>
-                    <div className="money-stats-value grand-total">${formatMoney(grandTotal)}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="table-container game-data-table-container">
-              <table className="game-data-table">
-                <thead>
+          <div className={`rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} backdrop-blur-sm overflow-hidden`}>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className={darkMode ? 'bg-gray-800 bg-opacity-50' : 'bg-gray-50 bg-opacity-50'}>
                   <tr>
-                    <th>Account</th>
-                    <th>Pocket</th>
-                    <th>Bank</th>
-                    <th>Level</th>
-                    <th>Health</th>
-                    <th>Status</th>
-                    <th>Place ID</th>
-                    <th>Last Update</th>
-                    <th>Actions</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Account</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Pocket</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Bank</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Level</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Health</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Place ID</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Last Update</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {gameData.map((data) => (
                     <React.Fragment key={data.account}>
-                      <tr className={data.status === 'warning' ? 'warning-row' : data.status === 'inactive' ? 'inactive-row' : ''}>
-                        <td>
-                          <div className="account-cell">
-                            {data.account}
+                      <tr className={`
+                        ${data.status === 'warning' ? 'bg-amber-50 dark:bg-amber-900 dark:bg-opacity-20' :
+                          data.status === 'inactive' ? 'bg-red-50 dark:bg-red-900 dark:bg-opacity-20' : ''}
+                      `}>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center">
+                            {/* <span className="font-medium">{data.account}</span> */}
                             {data.hasWebSocket && (
                               <span
-                                className="websocket-badge"
-                                title={`Status: ${getStatusLabel(data)}`}
+                                className="ml-2 w-3 h-3 rounded-full"
                                 style={{ backgroundColor: getStatusColor(data) }}
+                                title={`Status: ${getStatusLabel(data)}`}
                               ></span>
                             )}
                           </div>
                         </td>
-                        <td className="money-cell">
-                          {typeof data.money === 'number'
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          ${typeof data.money === 'number'
                             ? data.money.toLocaleString()
                             : data.money || '0'}
                         </td>
-                        <td className="money-cell">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           ${typeof data.bankMoney === 'number'
                             ? data.bankMoney.toLocaleString()
                             : data.bankMoney || '0'}
                         </td>
-                        <td>
-                          <span className="level-badge">{data.otherData?.level || '0'}</span>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 font-medium">
+                            {data.otherData?.level || '0'}
+                          </span>
                         </td>
-                        <td className="health-cell">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           {data.otherData ? (
-                            <>
-                              <span>{data.otherData.health} / {data.otherData.maxHealth}</span>
-                              <div className="health-bar-container">
+                            <div className="flex flex-col space-y-1">
+                              <span className="text-xs">{data.otherData.health} / {data.otherData.maxHealth}</span>
+                              <div className="w-32 bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
                                 <div
-                                  className="health-bar"
+                                  className="h-full rounded-full"
                                   style={{
                                     width: `${(data.otherData.health / data.otherData.maxHealth) * 100}%`,
                                     backgroundColor: getHealthColor(data.otherData.health, data.otherData.maxHealth)
                                   }}
-                                />
+                                ></div>
                               </div>
-                            </>
+                            </div>
                           ) : '0 / 0'}
                         </td>
-                        <td>
-                          <span className={`status-badge ${data.status === 'warning' ? 'warning' :
-                            data.status === 'inactive' ? 'inactive' : 'connected'}`}>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${data.status === 'warning' ? 'bg-amber-500 text-white' :
+                              data.status === 'inactive' ? 'bg-red-500 text-white' :
+                                'bg-emerald-500 text-white'
+                            }`}>
                             {getStatusLabel(data)}
                             {data.inactiveCount > 0 && data.inactiveCount < 10 && (
-                              <span className="inactive-counter" title={`${data.inactiveCount}/10 updates without balance changes`}>
+                              <span className="ml-1 px-1 text-xs bg-white bg-opacity-30 rounded">
                                 {data.inactiveCount}/10
                               </span>
                             )}
                           </span>
                         </td>
-                        <td>{data.placeId}</td>
-                        <td>{formatDate(data.lastUpdate)}</td>
-                        <td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm">{data.placeId}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm">{formatDate(data.lastUpdate)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm">
                           <button
-                            className="btn btn-sm btn-glass toggle-details-btn"
+                            className={`flex items-center px-2 py-1 rounded text-xs ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-purple-50'} transition-colors`}
                             onClick={() => toggleDetails(data.account)}
                           >
                             {expandedDetails === data.account ? (
-                              <>Hide <ChevronUpIcon /></>
+                              <>Hide <ChevronUp size={12} className="ml-1" /></>
                             ) : (
-                              <>Details <ChevronDownIcon /></>
+                              <>Details <ChevronDown size={12} className="ml-1" /></>
                             )}
                           </button>
                         </td>
                       </tr>
                       {expandedDetails === data.account && data.otherData && (
-                        <tr className="details-row">
-                          <td colSpan="9">
-                            <div className="player-detail-card">
-                              <div className="player-stats">
-                                <div className="stat-row">
-                                  <div className="stat-label">Player Name:</div>
-                                  <div className="stat-value">{data.otherData.playerName}</div>
-                                </div>
-                                <div className="stat-row">
-                                  <div className="stat-label">Display Name:</div>
-                                  <div className="stat-value">{data.otherData.displayName}</div>
-                                </div>
-                                <div className="stat-row">
-                                  <div className="stat-label">Position:</div>
-                                  <div className="stat-value">{data.otherData.position}</div>
-                                </div>
-                                {data.status === 'warning' || data.status === 'inactive' ? (
-                                  <div className="stat-row">
-                                    <div className="stat-label">Inactivity:</div>
-                                    <div className="stat-value">
-                                      {data.inactiveCount}/10 updates without balance changes
-                                    </div>
-                                  </div>
-                                ) : null}
+                        <tr className={`${darkMode ? 'bg-gray-700 bg-opacity-30' : 'bg-purple-50 bg-opacity-50'}`}>
+                          <td colSpan="9" className="px-8 py-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-70'}`}>
+                                <p className="text-xs uppercase opacity-70 mb-1">Player Name</p>
+                                <p className="font-medium">{data.otherData.playerName}</p>
                               </div>
+                              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-70'}`}>
+                                <p className="text-xs uppercase opacity-70 mb-1">Display Name</p>
+                                <p className="font-medium">{data.otherData.displayName}</p>
+                              </div>
+                              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-70'}`}>
+                                <p className="text-xs uppercase opacity-70 mb-1">Position</p>
+                                <p className="font-medium">{data.otherData.position}</p>
+                              </div>
+                              {(data.status === 'warning' || data.status === 'inactive') && (
+                                <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-70'}`}>
+                                  <p className="text-xs uppercase opacity-70 mb-1">Inactivity</p>
+                                  <p className="font-medium">{data.inactiveCount}/10 updates without balance changes</p>
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1053,135 +733,85 @@ end)`;
         )}
       </div>
 
-      {/* Processes Card */}
-      <div className="dashboard-card glass-card processes-card">
-        <div className="card-header">
-          <h3>Active Instances <span className="count-badge">{processes.length}</span></h3>
-        </div>
-        {processes.length === 0 ? (
-          <div className="no-data-message">
-            <p>No Roblox instances currently running</p>
-          </div>
-        ) : (
-          <div className="table-container processes-table-container">
-            <table className="processes-table">
-              <thead>
-                <tr>
-                  <th>PID</th>
-                  <th>Account</th>
-                  <th>Memory</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {processes.map((process) => {
-                  // Find if this process has an account with a WebSocket connection
-                  const accountData = gameData.find(data => data.account === process.account);
-                  const hasWebSocket = accountData?.hasWebSocket || false;
+      {/* Custom CSS - Global Styles */}
+      <style jsx global>{`
+        /* Glassmorphism and other global styles */
+        body {
+          transition: background-color 0.3s ease;
+        }
 
-                  return (
-                    <tr key={process.pid} className={`${process.account ? 'has-account' : ''} 
-                                                     ${accountData?.status === 'warning' ? 'warning-row' :
-                        accountData?.status === 'inactive' ? 'inactive-row' : ''}`}>
-                      <td>{process.pid}</td>
-                      <td>{process.account || 'Unknown'}</td>
-                      <td>{process.memoryUsage}</td>
-                      <td>
-                        {process.account ? (
-                          hasWebSocket ? (
-                            // Find matching game data to get status
-                            (() => {
-                              if (accountData) {
-                                return (
-                                  <span
-                                    className={`status-badge ${accountData.status === 'warning' ? 'warning' :
-                                      accountData.status === 'inactive' ? 'inactive' : 'connected'}`}
-                                    title={`Status: ${getStatusLabel(accountData)}`}
-                                  >
-                                    {getStatusLabel(accountData)}
-                                  </span>
-                                );
-                              } else {
-                                return <span className="status-badge connected" title="WebSocket Connected">Connected</span>;
-                              }
-                            })()
-                          ) : (
-                            <span className="status-badge disconnected" title="WebSocket Not Connected">Disconnected</span>
-                          )
-                        ) : (
-                          <span className="status-badge unknown" title="WebSocket Status Unknown">Unknown</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
 
-      {/* Add CSS for the status indicators */}
-      <style>{`
-        /* Status badges */
-        .status-badge.warning {
-          background-color: var(--warning-color, #ff9500);
+        ::-webkit-scrollbar-track {
+          background: ${darkMode ? '#2d3748' : '#f7fafc'};
+          border-radius: 8px;
         }
-        
-        .status-badge.inactive {
-          background-color: var(--danger-color, #ff3b30);
+
+        ::-webkit-scrollbar-thumb {
+          background: ${darkMode ? '#4a5568' : '#cbd5e0'};
+          border-radius: 8px;
         }
-        
-        /* Row highlighting */
-        .warning-row {
-          background-color: rgba(255, 149, 0, 0.1);
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: ${darkMode ? '#718096' : '#a0aec0'};
         }
-        
-        .inactive-row {
-          background-color: rgba(255, 59, 48, 0.1);
+
+        /* Animations */
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
-        
-        /* Tooltip for websocket badge */
-        .account-cell {
-          position: relative;
-          display: flex;
-          align-items: center;
+
+        .dashboard {
+          animation: fadeIn 0.5s ease-in;
         }
-        
-        .account-cell .websocket-badge {
-          position: relative;
-          margin-left: 8px;
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-          display: inline-block;
-          transition: all 0.3s ease;
+
+        /* Custom scrollbar for code block */
+        .lua-code-container::-webkit-scrollbar {
+          height: 6px;
         }
-        
-        .account-cell .websocket-badge:hover::after {
-          content: attr(title);
-          position: absolute;
-          top: -30px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: rgba(0, 0, 0, 0.8);
-          color: white;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          white-space: nowrap;
-          z-index: 10;
+
+        /* Transitions */
+        .card-transition {
+          transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
-        
-        /* Inactive counter */
-        .inactive-counter {
-          font-size: 0.8rem;
-          margin-left: 6px;
-          padding: 2px 6px;
-          background-color: rgba(255, 149, 0, 0.2);
-          color: var(--warning-color, #ff9500);
-          border-radius: 4px;
-          display: inline-block;
+
+        .card-transition:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Table row hover effects */
+        tbody tr {
+          transition: background-color 0.2s ease;
+        }
+
+        tbody tr:hover {
+          background-color: ${darkMode ? 'rgba(55, 65, 81, 0.5)' : 'rgba(237, 233, 254, 0.3)'};
+        }
+
+        /* Specific text glow effect for headings */
+        h1, h2, h3 {
+          text-shadow: ${darkMode ? 'none' : '0 0 20px rgba(139, 92, 246, 0.15)'};
+        }
+
+        /* Button glow effect */
+        .btn-glow:hover {
+          box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+        }
+
+        /* Custom animations for loading spinner */
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+
+        .pulse {
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
       `}</style>
     </div>

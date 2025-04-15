@@ -1,7 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import apiService from '../services/api'; // Adjust the import path as needed
+import React, { useState, useEffect, useRef } from 'react';
+import apiService from '../services/api';
+import { 
+  Terminal, 
+  Play, 
+  Code,
+  Save,
+  Trash2,
+  Clipboard,
+  Check,
+  AlertTriangle,
+  RefreshCw,
+  User,
+  Users,
+  CheckCircle,
+  XCircle,
+  X,
+  Download,
+  Upload,
+  BookOpen,
+  Edit
+} from 'react-feather';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-lua'; // Import Lua syntax
+import 'prismjs/themes/prism-tomorrow.css'; // Import a theme for dark mode (we'll conditionally apply it)
 
-const ScriptExecutor = () => {
+const ScriptExecutor = ({ darkMode }) => {
     const [accounts, setAccounts] = useState([]);
     const [allAccounts, setAllAccounts] = useState([]);
     const [selectedAccount, setSelectedAccount] = useState('');
@@ -12,6 +35,11 @@ const ScriptExecutor = () => {
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [executing, setExecuting] = useState(false);
+
+    // Refs for the editor elements
+    const editorRef = useRef(null);
+    const preRef = useRef(null);
+    const textareaRef = useRef(null);
 
     // Script saving and loading
     const [savedScripts, setSavedScripts] = useState([]);
@@ -34,13 +62,36 @@ const ScriptExecutor = () => {
         loadSavedScripts();
     }, []);
 
+    // Apply syntax highlighting when script changes
+    useEffect(() => {
+        if (preRef.current) {
+            preRef.current.textContent = script;
+            Prism.highlightElement(preRef.current);
+        }
+    }, [script, darkMode]);
+
+    // Sync scroll between textarea and pre elements
+    useEffect(() => {
+        const textarea = textareaRef.current;
+        const pre = preRef.current;
+        
+        if (!textarea || !pre) return;
+        
+        const syncScroll = () => {
+            pre.scrollTop = textarea.scrollTop;
+            pre.scrollLeft = textarea.scrollLeft;
+        };
+        
+        textarea.addEventListener('scroll', syncScroll);
+        return () => textarea.removeEventListener('scroll', syncScroll);
+    }, []);
+
     // Fetch all accounts and those with WebSocket connections
     useEffect(() => {
         const fetchAccountData = async () => {
             try {
                 // Fetch all game data
                 const gameData = await apiService.getGameData();
-                console.log('Game data:', gameData); // Debugging
 
                 // Set all accounts
                 const allAccountsList = gameData.map(account => account.account);
@@ -48,10 +99,7 @@ const ScriptExecutor = () => {
 
                 // Filter accounts with active WebSocket connections
                 const connectedAccounts = gameData
-                    .filter(account => {
-                        console.log(`Account ${account.account} hasWebSocket: ${account.hasWebSocket}`); // Debugging
-                        return account.hasWebSocket;
-                    })
+                    .filter(account => account.hasWebSocket)
                     .map(account => account.account);
 
                 setAccounts(connectedAccounts);
@@ -101,7 +149,6 @@ const ScriptExecutor = () => {
                 
                 if (result.success) {
                     setSuccessMessage(`Script executed on ${result.successCount}/${result.totalCount} accounts`);
-                    console.log('Execution results:', result);
                     
                     // Show more detailed results if there were failures
                     if (result.failedCount > 0 && result.details) {
@@ -121,7 +168,6 @@ const ScriptExecutor = () => {
                 
                 if (result.success) {
                     setSuccessMessage(`Script executed on ${result.successCount}/${result.totalCount} accounts`);
-                    console.log('Execution results:', result);
                     
                     // Show more detailed results if there were failures
                     if (result.failedCount > 0 && result.details) {
@@ -150,6 +196,30 @@ const ScriptExecutor = () => {
             setError('Failed to send script execution request');
         } finally {
             setExecuting(false);
+        }
+    };
+
+    // Handle editor input, syncing textarea with highlighted pre
+    const handleEditorInput = (e) => {
+        const value = e.target.value;
+        setScript(value);
+    };
+
+    // Handle tab key in editor
+    const handleKeyDown = (e) => {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = textareaRef.current.selectionStart;
+            const end = textareaRef.current.selectionEnd;
+            
+            // Insert 2 spaces for indentation
+            const newValue = script.substring(0, start) + '  ' + script.substring(end);
+            setScript(newValue);
+            
+            // Set cursor position after the inserted tab
+            setTimeout(() => {
+                textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 2;
+            }, 0);
         }
     };
 
@@ -283,206 +353,502 @@ return game:GetService("HttpService"):JSONEncode(result)`
     };
 
     return (
-        <div className="script-executor">
-            <h2>Remote Script Executor</h2>
+        <div className={`p-6 max-w-full ${darkMode ? 'dark-mode' : 'light-mode'}`}>
+            <div className="flex items-center mb-6">
+                <Terminal className="text-purple-500 mr-2" size={24} />
+                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">
+                    Remote Script Executor
+                </h1>
+            </div>
 
-            {error && <div className="alert alert-danger">{error}</div>}
-            {successMessage && <div className="alert alert-success">{successMessage}</div>}
+            {error && (
+                <div className="mb-4 p-4 rounded-lg bg-red-100 border border-red-400 text-red-700 flex items-center" role="alert">
+                    <XCircle className="mr-2" size={18} />
+                    <span>{error}</span>
+                </div>
+            )}
+            
+            {successMessage && (
+                <div className="mb-4 p-4 rounded-lg bg-green-100 border border-green-400 text-green-700 flex items-center" role="alert">
+                    <CheckCircle className="mr-2" size={18} />
+                    <span>{successMessage}</span>
+                </div>
+            )}
 
-            <div className="executor-container">
-                <div className="executor-panel">
-                    <div className="account-selection-header">
-                        <h4>Account Selection</h4>
-                        <button
-                            className="btn btn-sm btn-outline-primary"
-                            onClick={toggleMultiSelectMode}
-                        >
-                            {multiSelectMode ? 'Switch to Single Select' : 'Switch to Multi Select'}
-                        </button>
-                    </div>
-
-                    {!multiSelectMode ? (
-                        // Single account selection
-                        <div className="form-group">
-                            <label htmlFor="account">Select Account</label>
-                            <select
-                                id="account"
-                                className="form-control"
-                                value={selectedAccount}
-                                onChange={(e) => setSelectedAccount(e.target.value)}
-                                disabled={executing}
-                            >
-                                <option value="">-- Select Account --</option>
-                                {accounts.length > 0 && (
-                                    <option value="all_accounts">-- All WebSocket Accounts --</option>
-                                )}
-                                {accounts.map((account) => (
-                                    <option key={account} value={account}>
-                                        {account} (WebSocket)
-                                    </option>
-                                ))}
-                                {allAccounts.filter(acc => !accounts.includes(acc)).map((account) => (
-                                    <option key={account} value={account} disabled>
-                                        {account} (No WebSocket)
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    ) : (
-                        // Multi-account selection
-                        <div className="multi-select-container">
-                            <div className="multi-select-actions">
-                                <button
-                                    className="btn btn-sm btn-outline-secondary"
-                                    onClick={selectAllAccounts}
-                                    disabled={executing || accounts.length === 0}
-                                >
-                                    Select All
-                                </button>
-                                <button
-                                    className="btn btn-sm btn-outline-secondary"
-                                    onClick={deselectAllAccounts}
-                                    disabled={executing || selectedAccounts.length === 0}
-                                >
-                                    Deselect All
-                                </button>
-                                <span className="selected-count">
-                                    {selectedAccounts.length} of {accounts.length} selected
-                                </span>
-                            </div>
-                            <div className="accounts-checkboxes">
-                                {accounts.length === 0 ? (
-                                    <div className="no-accounts-message">
-                                        No accounts with WebSocket connections available
-                                    </div>
+            <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
+                {/* Account Selection Panel */}
+                <div className={`lg:col-span-2 rounded-xl ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>
+                    <div className="p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center">
+                                {multiSelectMode ? (
+                                    <Users className="text-purple-500 mr-2" size={20} />
                                 ) : (
-                                    accounts.map(account => (
-                                        <div key={account} className="account-checkbox">
-                                            <label>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedAccounts.includes(account)}
-                                                    onChange={() => toggleAccountSelection(account)}
-                                                    disabled={executing}
-                                                />
-                                                {account}
-                                            </label>
-                                        </div>
-                                    ))
+                                    <User className="text-purple-500 mr-2" size={20} />
                                 )}
+                                <h2 className="text-xl font-bold">Account Selection</h2>
                             </div>
+                            <button
+                                className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                                    darkMode 
+                                        ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                                        : 'bg-white hover:bg-gray-100 text-gray-700'
+                                } border border-gray-300 dark:border-gray-600`}
+                                onClick={toggleMultiSelectMode}
+                            >
+                                {multiSelectMode ? 'Single Mode' : 'Multi Mode'}
+                            </button>
                         </div>
-                    )}
 
-                    {accounts.length === 0 && (
-                        <div className="no-accounts-message">
-                            No accounts with active WebSocket connections. Make sure your Roblox script is running with WebSocket support.
-                        </div>
-                    )}
+                        {!multiSelectMode ? (
+                            <div className="mb-4">
+                                <label htmlFor="account" className="block text-sm font-medium mb-2">
+                                    Select Account
+                                </label>
+                                <div className="relative">
+                                    <select
+                                        id="account"
+                                        className={`w-full p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white bg-opacity-50'} backdrop-blur-sm border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-purple-500 focus:border-transparent appearance-none`}
+                                        value={selectedAccount}
+                                        onChange={(e) => setSelectedAccount(e.target.value)}
+                                        disabled={executing}
+                                    >
+                                        <option value="">-- Select Account --</option>
+                                        {accounts.length > 0 && (
+                                            <option value="all_accounts">-- All WebSocket Accounts --</option>
+                                        )}
+                                        {accounts.map((account) => (
+                                            <option key={account} value={account}>
+                                                {account} (WebSocket)
+                                            </option>
+                                        ))}
+                                        {allAccounts.filter(acc => !accounts.includes(acc)).map((account) => (
+                                            <option key={account} value={account} disabled>
+                                                {account} (No WebSocket)
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 dark:text-gray-300">
+                                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                            <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="mb-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <div className="text-sm font-medium">Select Accounts</div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            className={`px-2 py-1 rounded text-xs ${
+                                                darkMode 
+                                                    ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                                                    : 'bg-white hover:bg-gray-100 text-gray-700'
+                                            } border border-gray-300 dark:border-gray-600`}
+                                            onClick={selectAllAccounts}
+                                            disabled={executing || accounts.length === 0}
+                                        >
+                                            Select All
+                                        </button>
+                                        <button
+                                            className={`px-2 py-1 rounded text-xs ${
+                                                darkMode 
+                                                    ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                                                    : 'bg-white hover:bg-gray-100 text-gray-700'
+                                            } border border-gray-300 dark:border-gray-600`}
+                                            onClick={deselectAllAccounts}
+                                            disabled={executing || selectedAccounts.length === 0}
+                                        >
+                                            Clear
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} border border-gray-300 dark:border-gray-600 max-h-80 overflow-y-auto`}>
+                                    {accounts.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center h-32 text-center">
+                                            <AlertTriangle className="text-amber-500 mb-2" size={24} />
+                                            <p className="text-gray-500 dark:text-gray-400">No WebSocket connections available</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-1">
+                                            {accounts.map(account => (
+                                                <div 
+                                                    key={account} 
+                                                    className={`p-2 rounded flex items-center ${
+                                                        selectedAccounts.includes(account)
+                                                            ? darkMode 
+                                                                ? 'bg-purple-900 bg-opacity-30 text-white' 
+                                                                : 'bg-purple-100 text-purple-800'
+                                                            : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                                                    } cursor-pointer`}
+                                                    onClick={() => toggleAccountSelection(account)}
+                                                >
+                                                    <div className={`w-4 h-4 rounded border ${
+                                                        selectedAccounts.includes(account)
+                                                            ? 'bg-purple-500 border-purple-500'
+                                                            : 'border-gray-400 dark:border-gray-500'
+                                                    } mr-2 flex items-center justify-center`}>
+                                                        {selectedAccounts.includes(account) && (
+                                                            <Check size={12} className="text-white" />
+                                                        )}
+                                                    </div>
+                                                    <span className="flex-grow truncate">{account}</span>
+                                                    <div className="flex-shrink-0 h-2 w-2 rounded-full bg-green-500 ml-2"></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="text-xs text-right mt-1 text-gray-500 dark:text-gray-400">
+                                    {selectedAccounts.length} of {accounts.length} selected
+                                </div>
+                            </div>
+                        )}
 
-                    <div className="form-group">
-                        <label htmlFor="script">Lua Script</label>
-                        <textarea
-                            id="script"
-                            className="form-control script-textarea"
-                            value={script}
-                            onChange={(e) => setScript(e.target.value)}
-                            placeholder="Enter Lua script to execute on the selected Roblox client..."
-                            rows="12"
-                            disabled={executing}
-                        ></textarea>
-                    </div>
+                        {accounts.length === 0 && (
+                            <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} mb-4`}>
+                                <div className="flex items-start text-amber-500">
+                                    <AlertTriangle className="flex-shrink-0 mr-2" size={16} />
+                                    <p className="text-sm">
+                                        No accounts with active WebSocket connections. Make sure your Roblox script is running with WebSocket support.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
-                    <div className="script-actions">
-                        <div className="sample-scripts">
-                            <h4>Sample Scripts</h4>
-                            <div className="sample-scripts-container">
+                        {/* Sample Scripts */}
+                        <div className="mb-6">
+                            <div className="flex items-center mb-3">
+                                <BookOpen className="text-purple-500 mr-2" size={16} />
+                                <h3 className="text-base font-bold">Sample Scripts</h3>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2">
                                 {sampleScripts.map((sample, index) => (
                                     <button
                                         key={index}
-                                        className="btn btn-outline-secondary sample-script-btn"
+                                        className={`p-2 text-left rounded-lg text-sm transition-colors ${
+                                            darkMode 
+                                                ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                                                : 'bg-white hover:bg-gray-100 text-gray-700'
+                                        } border border-gray-300 dark:border-gray-600 truncate`}
                                         onClick={() => loadSampleScript(sample.code)}
                                         disabled={executing}
                                     >
-                                        {sample.name}
+                                        <div className="flex items-center">
+                                            <Code size={14} className="mr-2 text-purple-500" />
+                                            {sample.name}
+                                        </div>
                                     </button>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="saved-scripts">
-                            <h4>
-                                Saved Scripts
+                        {/* Saved Scripts */}
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center">
+                                    <Save className="text-purple-500 mr-2" size={16} />
+                                    <h3 className="text-base font-bold">Saved Scripts</h3>
+                                </div>
                                 <button
-                                    className="btn btn-sm btn-outline-primary save-script-btn"
+                                    className={`px-2 py-1 rounded text-xs ${
+                                        darkMode 
+                                            ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                                            : 'bg-white hover:bg-gray-100 text-gray-700'
+                                    } border border-gray-300 dark:border-gray-600`}
                                     onClick={() => setShowSaveDialog(!showSaveDialog)}
                                     disabled={executing}
                                 >
                                     {showSaveDialog ? 'Cancel' : 'Save Current'}
                                 </button>
-                            </h4>
+                            </div>
 
                             {showSaveDialog && (
-                                <div className="save-script-dialog">
-                                    <div className="form-group">
+                                <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} mb-3 border border-gray-300 dark:border-gray-600`}>
+                                    <div className="flex items-center space-x-2">
                                         <input
                                             type="text"
-                                            className="form-control"
-                                            placeholder="Enter script name"
+                                            className={`flex-grow p-2 rounded ${darkMode ? 'bg-gray-800' : 'bg-white'} border border-gray-300 dark:border-gray-600`}
+                                            placeholder="Script name"
                                             value={scriptName}
                                             onChange={(e) => setScriptName(e.target.value)}
                                         />
+                                        <button
+                                            className="px-3 py-2 rounded bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:opacity-90"
+                                            onClick={saveScript}
+                                        >
+                                            <Save size={16} />
+                                        </button>
                                     </div>
-                                    <button
-                                        className="btn btn-sm btn-success"
-                                        onClick={saveScript}
-                                    >
-                                        Save
-                                    </button>
                                 </div>
                             )}
 
-                            <div className="saved-scripts-list">
+                            <div className={`rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} border border-gray-300 dark:border-gray-600 max-h-60 overflow-y-auto`}>
                                 {savedScripts.length === 0 ? (
-                                    <p className="no-scripts-message">No saved scripts</p>
+                                    <div className="flex flex-col items-center justify-center h-24 text-center">
+                                        <p className="text-gray-500 dark:text-gray-400 text-sm">No saved scripts</p>
+                                    </div>
                                 ) : (
-                                    savedScripts.map((savedScript) => (
-                                        <div key={savedScript.id} className="saved-script-item">
-                                            <span className="saved-script-name">{savedScript.name}</span>
-                                            <div className="saved-script-actions">
-                                                <button
-                                                    className="btn btn-sm btn-outline-info"
-                                                    onClick={() => loadScript(savedScript)}
-                                                    title="Load this script"
-                                                >
-                                                    Load
-                                                </button>
-                                                <button
-                                                    className="btn btn-sm btn-outline-danger"
-                                                    onClick={() => deleteScript(savedScript.id)}
-                                                    title="Delete this script"
-                                                >
-                                                    Delete
-                                                </button>
+                                    <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                                        {savedScripts.map((savedScript) => (
+                                            <div key={savedScript.id} className="p-2 hover:bg-gray-100">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="truncate flex-grow mr-2">{savedScript.name}</div>
+                                                    <div className="flex-shrink-0 flex space-x-1">
+                                                        <button
+                                                            className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400`}
+                                                            onClick={() => loadScript(savedScript)}
+                                                            title="Load this script"
+                                                        >
+                                                            <Upload size={14} />
+                                                        </button>
+                                                        <button
+                                                            className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-red-600 dark:text-red-400`}
+                                                            onClick={() => deleteScript(savedScript.id)}
+                                                            title="Delete this script"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div className="form-group button-group">
-                        <button
-                            className="btn btn-primary"
-                            onClick={executeScript}
-                            disabled={(multiSelectMode && selectedAccounts.length === 0) || (!multiSelectMode && !selectedAccount) || executing}
-                        >
-                            {executing ? 'Executing...' : 'Execute Script'}
-                        </button>
+                {/* Script Editor Panel with Syntax Highlighting */}
+                <div className={`lg:col-span-5 rounded-xl ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>
+                    <div className="p-6">
+                        <div className="flex items-center mb-4">
+                            <Code className="text-purple-500 mr-2" size={20} />
+                            <h2 className="text-xl font-bold">Lua Script</h2>
+                        </div>
+
+                        <div className="mb-6">
+                            <div className={`relative rounded-lg border ${darkMode ? 'border-gray-600 bg-gray-900' : 'border-gray-300 bg-white'} overflow-hidden`}>
+                                <div className={`flex items-center justify-between px-4 py-2 ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} border-b ${darkMode ? 'border-gray-700' : 'border-gray-300'}`}>
+                                    <div className="flex items-center">
+                                        <Terminal size={14} className="mr-2 text-gray-500" />
+                                        <span className="text-sm font-medium">Lua Editor</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <button
+                                            className={`p-1 rounded text-xs ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+                                            onClick={() => setScript('')}
+                                            title="Clear editor"
+                                            disabled={executing || !script}
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                        <button
+                                            className={`p-1 rounded text-xs ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(script);
+                                                setSuccessMessage('Script copied to clipboard');
+                                                setTimeout(() => setSuccessMessage(''), 3000);
+                                            }}
+                                            title="Copy to clipboard"
+                                            disabled={executing || !script}
+                                        >
+                                            <Clipboard size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                {/* Code editor with syntax highlighting */}
+                                <div className="relative" ref={editorRef} style={{ height: '300px' }}>
+                                    {/* Syntax highlighted code */}
+                                    <pre
+                                        ref={preRef}
+                                        className="language-lua font-mono text-sm overflow-auto"
+                                        style={{ 
+                                            position: 'absolute', 
+                                            top: 0, 
+                                            left: 0, 
+                                            right: 0, 
+                                            bottom: 0, 
+                                            margin: 0, 
+                                            padding: '16px',
+                                            pointerEvents: 'none',
+                                            backgroundColor: darkMode ? '#1e1e2e' : '#ffffff',
+                                            color: darkMode ? '#f8f8f2' : '#24292e',
+                                            whiteSpace: 'pre-wrap',
+                                            wordWrap: 'break-word',
+                                            fontFamily: 'monospace'
+                                        }}
+                                    >{script}</pre>
+                                    
+                                    {/* Actual input textarea (visible caret but transparent background) */}
+                                    <textarea
+                                        ref={textareaRef}
+                                        className="font-mono text-sm focus:outline-none resize-none overflow-auto"
+                                        value={script}
+                                        onChange={handleEditorInput}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder="-- Enter Lua script to execute on the selected Roblox client..."
+                                        spellCheck="false"
+                                        disabled={executing}
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            right: 0,
+                                            bottom: 0,
+                                            padding: '16px',
+                                            color: 'rgba(0,0,0,0.05)',
+                                            caretColor: darkMode ? 'white' : 'black',
+                                            backgroundColor: 'transparent',
+                                            whiteSpace: 'pre-wrap',
+                                            wordWrap: 'break-word',
+                                            fontFamily: 'monospace'
+                                        }}
+                                    ></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end">
+                            <button
+                                className={`inline-flex items-center px-6 py-3 rounded-lg font-medium text-white ${
+                                    (multiSelectMode && selectedAccounts.length === 0) || (!multiSelectMode && !selectedAccount) || executing || !script
+                                        ? 'bg-gray-400 cursor-not-allowed'
+                                        : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90'
+                                }`}
+                                onClick={executeScript}
+                                disabled={(multiSelectMode && selectedAccounts.length === 0) || (!multiSelectMode && !selectedAccount) || executing || !script}
+                            >
+                                {executing ? (
+                                    <>
+                                        <RefreshCw size={18} className="mr-2 animate-spin" />
+                                        Executing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Play size={18} className="mr-2" />
+                                        Execute Script
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
+            
+            {/* Custom styling for Prism themes based on dark mode */}
+            <style jsx global>{`
+                /* Syntax highlighting colors */
+                .token.comment,
+                .token.prolog,
+                .token.doctype,
+                .token.cdata {
+                    color: #6272a4;
+                }
+
+                .token.punctuation {
+                    color: #f8f8f2;
+                }
+
+                .token.namespace {
+                    opacity: 0.7;
+                }
+
+                .token.property,
+                .token.tag,
+                .token.constant,
+                .token.symbol,
+                .token.deleted {
+                    color: #ff79c6;
+                }
+
+                .token.boolean,
+                .token.number {
+                    color: #bd93f9;
+                }
+
+                .token.selector,
+                .token.attr-name,
+                .token.string,
+                .token.char,
+                .token.builtin,
+                .token.inserted {
+                    color: #50fa7b;
+                }
+
+                .token.operator,
+                .token.entity,
+                .token.url,
+                .language-css .token.string,
+                .style .token.string {
+                    color: #50fa7b;
+                }
+
+                .token.atrule,
+                .token.attr-value,
+                .token.keyword {
+                    color: #ff79c6;
+                }
+
+                .token.function,
+                .token.class-name {
+                    color: #8be9fd;
+                }
+
+                .token.regex,
+                .token.important,
+                .token.variable {
+                    color: #f1fa8c;
+                }
+
+                /* Make sure the textarea selection is visible and matches theme */
+                textarea::selection {
+                    background-color: rgba(73, 66, 228, 0.3) !important; /* Blueish highlight */
+                    color: inherit !important;
+                }
+                
+                /* Firefox-specific selection styling */
+                textarea::-moz-selection {
+                    background-color: rgba(73, 66, 228, 0.3) !important;
+                    color: inherit !important;
+                }
+                
+                /* Dark mode selection adjustments */
+                .dark-mode textarea::selection {
+                    background-color: rgba(97, 175, 239, 0.3) !important; /* Lighter blue for dark mode */
+                }
+                
+                .dark-mode textarea::-moz-selection {
+                    background-color: rgba(97, 175, 239, 0.3) !important;
+                }
+                
+                /* Fix cursor visibility issues */
+                textarea {
+                    caret-color: currentColor !important;
+                    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace !important;
+                    line-height: 1.5 !important;
+                    tab-size: 4 !important;
+                }
+                
+                .dark-mode textarea {
+                    caret-color: white !important;
+                }
+                
+                .light-mode textarea {
+                    caret-color: black !important;
+                }
+                
+                /* Ensure pre and textarea use the same font properties */
+                pre, textarea {
+                    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace !important;
+                    font-size: 14px !important;
+                    line-height: 1.5 !important;
+                    tab-size: 4 !important;
+                }
+            `}</style>
         </div>
     );
 };

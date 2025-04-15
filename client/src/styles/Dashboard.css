@@ -1,0 +1,320 @@
+/* Dashboard.css - Global styles for the dashboard */
+
+/* Base styles */
+
+
+body {
+    transition: background-color 0.3s ease;
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  }
+  .dashboard {
+    width: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+
+  .dashboard .position-absolute {
+    position: absolute;
+    left: 0;
+    right: 0;
+  }
+  
+  
+  /* Theme-specific styles */
+  .light-mode {
+    background: linear-gradient(135deg, #EDF2F7, #EBF4FF, #FAE8FF);
+    color: #1A202C;
+  }
+  
+  .dark-mode {
+    background-color: #111827;
+    color: #F9FAFB;
+  }
+  
+  /* Glassmorphism effects */
+  .bg-opacity-30 {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  
+  .bg-opacity-50 {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  
+  .bg-opacity-70 {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .light-mode ::-webkit-scrollbar-track {
+    background: #f7fafc;
+    border-radius: 8px;
+  }
+  
+  .dark-mode ::-webkit-scrollbar-track {
+    background: #2d3748;
+    border-radius: 8px;
+  }
+  
+  .light-mode ::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 8px;
+  }
+  
+  .dark-mode ::-webkit-scrollbar-thumb {
+    background: #4a5568;
+    border-radius: 8px;
+  }
+  
+  .light-mode ::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+  }
+  
+  .dark-mode ::-webkit-scrollbar-thumb:hover {
+    background: #718096;
+  }
+  
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  .dashboard {
+    animation: fadeIn 0.5s ease-in;
+  }
+  
+  /* Custom animations for loading spinner */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  
+  .pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+  
+  /* Card styles */
+  .rounded-xl {
+    border-radius: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  
+  .rounded-xl:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Border styles */
+  .light-mode .border {
+    border-color: rgba(226, 232, 240, 0.6);
+  }
+  
+  .dark-mode .border {
+    border-color: rgba(45, 55, 72, 0.6);
+  }
+  
+  /* Button styles */
+  button {
+    transition: all 0.2s;
+  }
+  
+  .bg-gradient-to-r {
+    background-size: 200% auto;
+    transition: 0.5s;
+  }
+  
+  .bg-gradient-to-r:hover {
+    background-position: right center;
+    box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+  }
+  
+  .from-purple-600.to-pink-600 {
+    background-image: linear-gradient(to right, #8B5CF6, #EC4899);
+  }
+  
+  /* Table styles */
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  
+  th {
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  
+  tbody tr {
+    transition: background-color 0.2s ease;
+  }
+  
+  .light-mode tbody tr:hover {
+    background-color: rgba(237, 233, 254, 0.3);
+  }
+  
+  .dark-mode tbody tr:hover {
+    background-color: rgba(55, 65, 81, 0.5);
+  }
+  
+  /* Status indicators */
+  .rounded-full {
+    border-radius: 9999px;
+  }
+  
+  /* Health bar */
+  .health-bar-container {
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  
+  .health-bar {
+    height: 100%;
+    transition: width 0.5s ease-out;
+  }
+  
+  /* Text effects */
+  .light-mode h1, 
+  .light-mode h2, 
+  .light-mode h3 {
+    text-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+  }
+  
+  .text-transparent.bg-clip-text.bg-gradient-to-r {
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  
+  /* Form controls */
+  select, input {
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  }
+  
+  select:focus, input:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+  }
+  
+  .appearance-none {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
+  
+  /* Code display */
+  pre {
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  
+  /* Alert styles */
+  .alert {
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  /* Transitions */
+  .transition-colors {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+  
+  /* Loading screen */
+  .flex.h-screen.items-center.justify-center {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Detail rows */
+  .details-row {
+    transition: all 0.3s ease;
+  }
+  
+  /* Media queries for responsiveness */
+  @media (max-width: 768px) {
+    .p-6 {
+      padding: 1rem;
+    }
+
+    .dashboard {
+        padding: 15px 10px;
+      }
+    
+    .grid-cols-3 {
+      grid-template-columns: 1fr;
+    }
+    
+    .col-span-3 {
+      grid-column: span 1;
+    }
+    
+    .text-3xl {
+      font-size: 1.5rem;
+    }
+    
+    .space-x-2 {
+      margin-top: 0.5rem;
+    }
+    
+    .w-32 {
+      width: 100%;
+    }
+  }
+  
+  /* Specific component styling */
+  .money-stats-card {
+    transition: all 0.3s ease;
+  }
+  
+  .money-stats-card:hover {
+    transform: translateY(-5px);
+  }
+  
+  /* Icons styling */
+  .rounded-full.p-3 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Utilities */
+  .backdrop-blur-md {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  
+  .backdrop-blur-sm {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  
+  .shadow-lg {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+  
+  .shadow-md {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
