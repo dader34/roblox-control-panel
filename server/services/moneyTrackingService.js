@@ -1,315 +1,353 @@
 /**
  * Money Tracking Service
- * Handles tracking of money earned by accounts over time
+ * Handles tracking and analyzing money changes for accounts
  */
 
-const fs = require('fs').promises;
+const fs = require('fs/promises');
 const path = require('path');
-const config = require('../../config');
 
-// File path for storing money tracking data
-const MONEY_TRACKING_FILE = path.join(__dirname, '../../data/money_tracking.json');
+// File path for storing tracking data
+const TRACKING_FILE = path.join(__dirname, '..', 'data', 'money_tracking.json');
 
-// In-memory cache of tracking data
-let trackingData = null;
-
-/**
- * Ensures the tracking file exists, creates it if not
- * @async
- * @returns {Promise<void>}
- */
-async function ensureTrackingFile() {
+// Ensure the data directory exists
+async function ensureDataDirectory() {
+  const dataDir = path.join(__dirname, '..', 'data');
   try {
-    await fs.access(MONEY_TRACKING_FILE);
+    await fs.mkdir(dataDir, { recursive: true });
   } catch (error) {
-    // If file doesn't exist, create it with default structure
-    const defaultData = {
-      accounts: {},
-      lastUpdate: new Date().toISOString()
-    };
-    
-    // Create directory if it doesn't exist
-    const dir = path.dirname(MONEY_TRACKING_FILE);
-    await fs.mkdir(dir, { recursive: true });
-    
-    // Write default data to file
-    await fs.writeFile(MONEY_TRACKING_FILE, JSON.stringify(defaultData, null, 2));
+    if (error.code !== 'EEXIST') {
+      console.error('Error creating data directory:', error);
+      throw error;
+    }
   }
 }
 
 /**
- * Loads tracking data from file
- * @async
- * @returns {Promise<Object>} Tracking data object
- */
-async function loadTrackingData() {
-  if (trackingData !== null) {
-    return trackingData; // Return cached data if available
-  }
-  
-  try {
-    await ensureTrackingFile();
-    const data = await fs.readFile(MONEY_TRACKING_FILE, 'utf8');
-    trackingData = JSON.parse(data);
-    return trackingData;
-  } catch (error) {
-    console.error('Error loading money tracking data:', error);
-    // Return empty structure if file can't be loaded
-    trackingData = { accounts: {}, lastUpdate: new Date().toISOString() };
-    return trackingData;
-  }
-}
-
-/**
- * Saves tracking data to file
- * @async
+ * Save tracking data to file
  * @param {Object} data - Tracking data to save
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} - Whether save was successful
  */
 async function saveTrackingData(data) {
   try {
-    await ensureTrackingFile();
-    await fs.writeFile(MONEY_TRACKING_FILE, JSON.stringify(data, null, 2));
-    trackingData = data; // Update cache
+    await ensureDataDirectory();
+    
+    // Save data to file
+    await fs.writeFile(
+      TRACKING_FILE, 
+      JSON.stringify(data, null, 2), 
+      'utf8'
+    );
+    
+    console.log('Money tracking data saved successfully');
+    return true;
   } catch (error) {
     console.error('Error saving money tracking data:', error);
+    return false;
   }
 }
 
 /**
- * Initializes tracking for a new account if it doesn't exist
- * @async
- * @param {string} accountName - Account name to initialize
- * @returns {Promise<void>}
+ * Load tracking data from file
+ * @returns {Promise<Object>} - Loaded tracking data
  */
-async function initializeAccount(accountName) {
-  const data = await loadTrackingData();
-  
-  if (!data.accounts[accountName]) {
-    data.accounts[accountName] = {
-      totalEarned: 0,     // Total of all money earned in increments (running sum of increases)
-      netEarned: 0,       // Net earnings excluding starting money (current - starting)
-      startingMoney: null,
-      startingBankMoney: null,
-      currentMoney: 0,
-      currentBankMoney: 0,
-      history: [],
+async function loadTrackingData() {
+  try {
+    await ensureDataDirectory();
+    
+    // Check if file exists
+    try {
+      await fs.access(TRACKING_FILE);
+    } catch (error) {
+      // File doesn't exist yet - create empty data structure
+      const emptyData = {
+        accounts: {},
+        lastUpdate: new Date().toISOString()
+      };
+      await saveTrackingData(emptyData);
+      return emptyData;
+    }
+    
+    // Read and parse data
+    const rawData = await fs.readFile(TRACKING_FILE, 'utf8');
+    
+    // Handle empty file case
+    if (!rawData || rawData.trim() === '') {
+      console.warn('Money tracking file was empty, initializing with default data');
+      const defaultData = {
+        accounts: {},
+        lastUpdate: new Date().toISOString()
+      };
+      await saveTrackingData(defaultData);
+      return defaultData;
+    }
+    
+    try {
+      // Try to parse the data
+      return JSON.parse(rawData);
+    } catch (error) {
+      // Handle corrupted JSON
+      console.error('Money tracking data corrupted, initializing with default data');
+      const defaultData = {
+        accounts: {},
+        lastUpdate: new Date().toISOString()
+      };
+      await saveTrackingData(defaultData);
+      return defaultData;
+    }
+  } catch (error) {
+    console.error('Error loading money tracking data:', error);
+    // Return an empty data structure as fallback
+    return {
+      accounts: {},
       lastUpdate: new Date().toISOString()
     };
-    
-    await saveTrackingData(data);
   }
 }
 
 /**
- * Updates money tracking data for an account
- * @async
- * @param {string} accountName - Account name to update
- * @param {number|string} money - Current pocket money value
- * @param {number|string} bankMoney - Current bank money value
- * @returns {Promise<Object>} Updated account tracking data
+ * Update money tracking for an account
+ * @param {string} accountName - Account name
+ * @param {number|string} money - Pocket money value
+ * @param {number|string} bankMoney - Bank money value
+ * @returns {Promise<Object>} - Updated tracking data for the account
  */
 async function updateAccountMoney(accountName, money, bankMoney) {
-  // Parse numeric values from string if needed
-  const currentMoney = typeof money === 'string' 
-    ? parseFloat(money.replace(/[$,£€]/g, '')) || 0 
-    : money || 0;
+  try {
+    // Parse values to ensure we're working with numbers
+    const pocketValue = parseMoneyValue(money);
+    const bankValue = parseMoneyValue(bankMoney);
+    const currentTotal = pocketValue + bankValue;
+    const timestamp = new Date();
     
-  const currentBankMoney = typeof bankMoney === 'string'
-    ? parseFloat(bankMoney.replace(/[$,£€]/g, '')) || 0
-    : bankMoney || 0;
-  
-  // Load current data
-  const data = await loadTrackingData();
-  
-  // Initialize account if not exists
-  if (!data.accounts[accountName]) {
-    await initializeAccount(accountName);
-  }
-  
-  const account = data.accounts[accountName];
-  
-  // Set starting values if not already set
-  // This captures the initial money when the account first connects
-  if (account.startingMoney === null) {
-    account.startingMoney = currentMoney;
-  }
-  
-  if (account.startingBankMoney === null) {
-    account.startingBankMoney = currentBankMoney;
-  }
-  
-  // Calculate total money (pocket + bank)
-  const currentTotal = currentMoney + currentBankMoney;
-  const previousTotal = account.currentMoney + account.currentBankMoney;
-  const startingTotal = account.startingMoney + account.startingBankMoney;
-  
-  // Calculate new earnings based on the difference from previous values
-  // but only if the current total is higher than the previous total
-  let earned = 0;
-  
-  if (currentTotal > previousTotal) {
-    earned = currentTotal - previousTotal;
-    account.totalEarned += earned;
-  }
-  
-  // Calculate net earned since starting (excluding starting money)
-  // This is what the user will see as "Total Earned"
-  account.netEarned = (currentTotal - startingTotal > 0) ? (currentTotal - startingTotal) : 0;
-  
-  // Update current values
-  account.currentMoney = currentMoney;
-  account.currentBankMoney = currentBankMoney;
-  
-  // Add entry to history if there was a change
-  if (earned > 0) {
-    account.history.push({
-      timestamp: new Date().toISOString(),
-      earned: earned,
-      newTotal: currentTotal
-    });
+    // Load current tracking data
+    const trackingData = await loadTrackingData();
     
-    // Limit history size to prevent file growth
-    if (account.history.length > 100) {
-      account.history = account.history.slice(-100);
+    // Initialize account data if it doesn't exist
+    if (!trackingData.accounts[accountName]) {
+      trackingData.accounts[accountName] = {
+        timestamps: [],
+        pocketValues: [],
+        bankValues: [],
+        totalValues: [],
+        lastUpdate: null,
+        earnings: 0,
+        earningRate: 0,
+        sessionStart: timestamp.toISOString()
+      };
     }
+    
+    const account = trackingData.accounts[accountName];
+    
+    // Check if we have previous values to compare with
+    if (account.timestamps.length > 0) {
+      const prevPocket = account.pocketValues[account.pocketValues.length - 1];
+      const prevBank = account.bankValues[account.bankValues.length - 1];
+      const prevTotal = prevPocket + prevBank;
+      
+      // Calculate earnings if total increased
+      if (currentTotal > prevTotal) {
+        account.earnings += (currentTotal - prevTotal);
+        
+        // Calculate time difference in hours since session start
+        const sessionStartTime = new Date(account.sessionStart).getTime();
+        const hoursActive = (timestamp.getTime() - sessionStartTime) / (1000 * 60 * 60);
+        
+        // Update earning rate (earnings per hour)
+        if (hoursActive > 0) {
+          account.earningRate = account.earnings / hoursActive;
+        }
+      }
+    }
+    
+    // Add current values to history (limit to last 50 entries to avoid file bloat)
+    if (account.timestamps.length >= 50) {
+      account.timestamps.shift();
+      account.pocketValues.shift();
+      account.bankValues.shift();
+      account.totalValues.shift();
+    }
+    
+    // Add current reading
+    account.timestamps.push(timestamp.toISOString());
+    account.pocketValues.push(pocketValue);
+    account.bankValues.push(bankValue);
+    account.totalValues.push(currentTotal);
+    account.lastUpdate = timestamp.toISOString();
+    
+    // Update global last update time
+    trackingData.lastUpdate = timestamp.toISOString();
+    
+    // Save updated data
+    await saveTrackingData(trackingData);
+    
+    // Return updated account data
+    return account;
+  } catch (error) {
+    console.error(`Error updating money for account ${accountName}:`, error);
+    throw error;
   }
-  
-  // Update timestamps
-  account.lastUpdate = new Date().toISOString();
-  data.lastUpdate = new Date().toISOString();
-  
-  // Save data
-  await saveTrackingData(data);
-  
-  return account;
 }
 
 /**
- * Gets tracking data for a specific account
- * @async
- * @param {string} accountName - Account name to get data for
- * @returns {Promise<Object|null>} Account tracking data or null if not found
+ * Clean and parse money values
+ * @param {string|number} value - Money value to parse
+ * @returns {number} - Parsed numeric value
  */
-async function getAccountTracking(accountName) {
-  const data = await loadTrackingData();
-  return data.accounts[accountName] || null;
+function parseMoneyValue(value) {
+  if (typeof value === 'number') return value;
+  if (!value) return 0;
+  
+  // Remove currency symbols, commas, and other non-numeric characters except decimal point
+  const cleanedValue = value.toString().replace(/[$,£€\s]/g, '');
+  return parseFloat(cleanedValue) || 0;
 }
 
 /**
- * Gets tracking data for all accounts
- * @async
- * @returns {Promise<Object>} All tracking data
+ * Get tracking data for all accounts
+ * @returns {Promise<Object>} - All tracking data
  */
-async function getAllTracking() {
+async function getAllTrackingData() {
   return await loadTrackingData();
 }
 
 /**
- * Gets earnings summary for all accounts
- * @async
- * @returns {Promise<Object>} Earnings summary
+ * Get earnings summary statistics
+ * @returns {Promise<Object>} - Earnings summary data
  */
 async function getEarningsSummary() {
-  const data = await loadTrackingData();
-  
-  // Calculate total earnings across all accounts
-  let totalEarned = 0;
-  let accountsWithEarnings = 0;
-  let topEarningAccount = null;
-  let topEarningAmount = 0;
-  
-  // Account-specific summaries
-  const accountSummaries = {};
-  
-  Object.entries(data.accounts).forEach(([accountName, accountData]) => {
-    // Use netEarned instead of totalEarned to exclude starting money
-    totalEarned += accountData.netEarned;
+  try {
+    const trackingData = await loadTrackingData();
+    const accounts = trackingData.accounts;
     
-    if (accountData.netEarned > 0) {
-      accountsWithEarnings++;
-      
-      // Track top earning account
-      if (accountData.netEarned > topEarningAmount) {
-        topEarningAmount = accountData.netEarned;
-        topEarningAccount = accountName;
+    // Calculate total earnings
+    let totalEarnings = 0;
+    let totalRates = 0;
+    let activeAccounts = 0;
+    
+    // Top earners data
+    const topEarners = [];
+    
+    // Process each account
+    for (const [accountName, accountData] of Object.entries(accounts)) {
+      if (accountData.earnings > 0) {
+        totalEarnings += accountData.earnings;
+        totalRates += accountData.earningRate || 0;
+        activeAccounts++;
+        
+        topEarners.push({
+          accountName,
+          earnings: accountData.earnings,
+          earningRate: accountData.earningRate || 0,
+          lastUpdate: accountData.lastUpdate
+        });
       }
     }
     
-    // Calculate per-account stats
-    const startTotal = (accountData.startingMoney || 0) + (accountData.startingBankMoney || 0);
-    const currentTotal = accountData.currentMoney + accountData.currentBankMoney;
-    const netChange = currentTotal - startTotal;
+    // Sort top earners by earnings
+    topEarners.sort((a, b) => b.earnings - a.earnings);
     
-    // Add hourly rate if we have history
-    let hourlyRate = 0;
-    if (accountData.history.length > 0) {
-      const oldestEntry = new Date(accountData.history[0].timestamp);
-      const newestEntry = new Date(accountData.history[accountData.history.length - 1].timestamp);
-      const hoursDiff = (newestEntry - oldestEntry) / (1000 * 60 * 60);
-      
-      if (hoursDiff > 0) {
-        hourlyRate = accountData.netEarned / hoursDiff;
+    // Calculate session duration for each account
+    const accountDurations = {};
+    for (const [accountName, accountData] of Object.entries(accounts)) {
+      if (accountData.sessionStart) {
+        const sessionStartTime = new Date(accountData.sessionStart).getTime();
+        const currentTime = new Date().getTime();
+        const durationMs = currentTime - sessionStartTime;
+        accountDurations[accountName] = durationMs;
       }
     }
     
-    accountSummaries[accountName] = {
-      totalEarned: accountData.netEarned, // Use netEarned here for consistency
-      netChange,
-      hourlyRate,
-      currentTotal,
-      startingTotal: startTotal,
-      lastUpdate: accountData.lastUpdate
+    // Determine earliest session start (global session duration)
+    let globalSessionStart = Date.now();
+    for (const [accountName, accountData] of Object.entries(accounts)) {
+      if (accountData.sessionStart) {
+        const sessionStartTime = new Date(accountData.sessionStart).getTime();
+        if (sessionStartTime < globalSessionStart) {
+          globalSessionStart = sessionStartTime;
+        }
+      }
+    }
+    
+    const globalSessionDuration = Date.now() - globalSessionStart;
+    const globalSessionHours = globalSessionDuration / (1000 * 60 * 60);
+    
+    // Calculate global earning rate
+    const globalEarningRate = globalSessionHours > 0 
+      ? totalEarnings / globalSessionHours 
+      : 0;
+    
+    return {
+      totalEarnings,
+      averageRate: activeAccounts > 0 ? totalRates / activeAccounts : 0,
+      activeAccounts,
+      globalEarningRate,
+      globalSessionDuration,
+      topEarners: topEarners.slice(0, 5), // Return top 5 earners
+      accountDurations
     };
-  });
-  
-  return {
-    totalEarned,
-    accountsWithEarnings,
-    topEarningAccount,
-    topEarningAmount,
-    accountSummaries,
-    lastUpdate: data.lastUpdate
-  };
+  } catch (error) {
+    console.error('Error generating earnings summary:', error);
+    return {
+      totalEarnings: 0,
+      averageRate: 0,
+      activeAccounts: 0,
+      globalEarningRate: 0,
+      globalSessionDuration: 0,
+      topEarners: [],
+      accountDurations: {}
+    };
+  }
 }
 
 /**
- * Resets tracking for a specific account
- * @async
- * @param {string} accountName - Account name to reset
- * @returns {Promise<boolean>} Whether reset was successful
+ * Reset session for an account
+ * @param {string} accountName - Account name
+ * @returns {Promise<Object>} - Updated account data
  */
-async function resetAccountTracking(accountName) {
-  const data = await loadTrackingData();
-  
-  if (!data.accounts[accountName]) {
+async function resetAccountSession(accountName) {
+  try {
+    const trackingData = await loadTrackingData();
+    
+    if (trackingData.accounts[accountName]) {
+      // Keep history but reset earnings and session start time
+      trackingData.accounts[accountName].earnings = 0;
+      trackingData.accounts[accountName].earningRate = 0;
+      trackingData.accounts[accountName].sessionStart = new Date().toISOString();
+      
+      // Save updated data
+      await saveTrackingData(trackingData);
+    }
+    
+    return trackingData.accounts[accountName] || null;
+  } catch (error) {
+    console.error(`Error resetting session for account ${accountName}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Reset tracking for all accounts
+ * @returns {Promise<boolean>} - Whether reset was successful
+ */
+async function resetAllTracking() {
+  try {
+    const emptyData = {
+      accounts: {},
+      lastUpdate: new Date().toISOString()
+    };
+    
+    await saveTrackingData(emptyData);
+    return true;
+  } catch (error) {
+    console.error('Error resetting tracking data:', error);
     return false;
   }
-  
-  // Reset the account data
-  const currentMoney = data.accounts[accountName].currentMoney;
-  const currentBankMoney = data.accounts[accountName].currentBankMoney;
-  
-  data.accounts[accountName] = {
-    totalEarned: 0,
-    netEarned: 0,
-    startingMoney: currentMoney,
-    startingBankMoney: currentBankMoney,
-    currentMoney: currentMoney,
-    currentBankMoney: currentBankMoney,
-    history: [],
-    lastUpdate: new Date().toISOString()
-  };
-  
-  await saveTrackingData(data);
-  return true;
 }
 
 module.exports = {
-  initializeAccount,
   updateAccountMoney,
-  getAccountTracking,
-  getAllTracking,
+  getAllTrackingData,
   getEarningsSummary,
-  resetAccountTracking
+  resetAccountSession,
+  resetAllTracking
 };
