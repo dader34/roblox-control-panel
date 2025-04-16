@@ -326,10 +326,10 @@ const MoneyTracking = ({ darkMode }) => {
             <div className={`rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} backdrop-blur-sm overflow-hidden`}>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className={darkMode ? 'bg-gray-800 bg-opacity-50' : 'bg-gray-50 bg-opacity-50'}>
+                <thead className={darkMode ? 'bg-gray-800 bg-opacity-50' : 'bg-gray-50 bg-opacity-50'}>
                     <tr>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Account</th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Total Earned</th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Net Earned</th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Current Balance</th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Net Change</th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Hourly Rate</th>
@@ -411,7 +411,7 @@ const MoneyTracking = ({ darkMode }) => {
                               {accountDetails[accountName] ? (
                                 <div className="space-y-4">
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-70'}`}>
+                                  <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-70'}`}>
                                       <p className="text-xs uppercase opacity-70 mb-1">Starting Balance</p>
                                       <p className="font-medium">
                                         Pocket: {formatMoney(accountDetails[accountName].startingMoney || 0)}
@@ -442,7 +442,10 @@ const MoneyTracking = ({ darkMode }) => {
                                     <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-70'}`}>
                                       <p className="text-xs uppercase opacity-70 mb-1">Tracking Stats</p>
                                       <p className="font-medium">
-                                        Total Earned: {formatMoney(accountDetails[accountName].totalEarned)}
+                                        Net Earned: {formatMoney(accountDetails[accountName].netEarned || 0)}
+                                      </p>
+                                      <p className="font-medium">
+                                        Gross Total Earned: {formatMoney(accountDetails[accountName].totalEarned || 0)}
                                       </p>
                                       <p className="font-medium">
                                         History Entries: {accountDetails[accountName].history?.length || 0}

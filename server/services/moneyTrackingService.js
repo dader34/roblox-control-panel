@@ -87,7 +87,8 @@ async function initializeAccount(accountName) {
   
   if (!data.accounts[accountName]) {
     data.accounts[accountName] = {
-      totalEarned: 0,
+      totalEarned: 0,     // Total of all money earned in increments (running sum of increases)
+      netEarned: 0,       // Net earnings excluding starting money (current - starting)
       startingMoney: null,
       startingBankMoney: null,
       currentMoney: 0,
@@ -129,6 +130,7 @@ async function updateAccountMoney(accountName, money, bankMoney) {
   const account = data.accounts[accountName];
   
   // Set starting values if not already set
+  // This captures the initial money when the account first connects
   if (account.startingMoney === null) {
     account.startingMoney = currentMoney;
   }
@@ -137,18 +139,23 @@ async function updateAccountMoney(accountName, money, bankMoney) {
     account.startingBankMoney = currentBankMoney;
   }
   
+  // Calculate total money (pocket + bank)
+  const currentTotal = currentMoney + currentBankMoney;
+  const previousTotal = account.currentMoney + account.currentBankMoney;
+  const startingTotal = account.startingMoney + account.startingBankMoney;
+  
   // Calculate new earnings based on the difference from previous values
+  // but only if the current total is higher than the previous total
   let earned = 0;
   
-  // Calculate current total (pocket + bank)
-  const previousTotal = account.currentMoney + account.currentBankMoney;
-  const currentTotal = currentMoney + currentBankMoney;
-  
-  // If current total is higher, add the difference to earnings
   if (currentTotal > previousTotal) {
     earned = currentTotal - previousTotal;
     account.totalEarned += earned;
   }
+  
+  // Calculate net earned since starting (excluding starting money)
+  // This is what the user will see as "Total Earned"
+  account.netEarned = (currentTotal - startingTotal > 0) ? (currentTotal - startingTotal) : 0;
   
   // Update current values
   account.currentMoney = currentMoney;
@@ -216,14 +223,15 @@ async function getEarningsSummary() {
   const accountSummaries = {};
   
   Object.entries(data.accounts).forEach(([accountName, accountData]) => {
-    totalEarned += accountData.totalEarned;
+    // Use netEarned instead of totalEarned to exclude starting money
+    totalEarned += accountData.netEarned;
     
-    if (accountData.totalEarned > 0) {
+    if (accountData.netEarned > 0) {
       accountsWithEarnings++;
       
       // Track top earning account
-      if (accountData.totalEarned > topEarningAmount) {
-        topEarningAmount = accountData.totalEarned;
+      if (accountData.netEarned > topEarningAmount) {
+        topEarningAmount = accountData.netEarned;
         topEarningAccount = accountName;
       }
     }
@@ -241,15 +249,16 @@ async function getEarningsSummary() {
       const hoursDiff = (newestEntry - oldestEntry) / (1000 * 60 * 60);
       
       if (hoursDiff > 0) {
-        hourlyRate = accountData.totalEarned / hoursDiff;
+        hourlyRate = accountData.netEarned / hoursDiff;
       }
     }
     
     accountSummaries[accountName] = {
-      totalEarned: accountData.totalEarned,
+      totalEarned: accountData.netEarned, // Use netEarned here for consistency
       netChange,
       hourlyRate,
       currentTotal,
+      startingTotal: startTotal,
       lastUpdate: accountData.lastUpdate
     };
   });
@@ -283,6 +292,7 @@ async function resetAccountTracking(accountName) {
   
   data.accounts[accountName] = {
     totalEarned: 0,
+    netEarned: 0,
     startingMoney: currentMoney,
     startingBankMoney: currentBankMoney,
     currentMoney: currentMoney,
