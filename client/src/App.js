@@ -5,8 +5,24 @@ import AccountList from './components/AccountList';
 import ProcessList from './components/ProcessList';
 import ScriptExecutor from './components/ScriptExecutor';
 import MoneyTracking from './components/MoneyTracking';
-import { Menu, X, Home, Users, Terminal, Play, Moon, Sun, DollarSign } from 'react-feather';
+import { 
+  Menu, 
+  X, 
+  Home, 
+  Users, 
+  Terminal, 
+  Play, 
+  Moon, 
+  Sun, 
+  DollarSign, 
+  ChevronLeft, 
+  Settings,
+  User,
+  HelpCircle,
+  Info
+} from 'react-feather';
 import './styles/App.css';
+import './styles/Sidebar.css';
 
 // NavLink component to handle active states
 const NavLink = ({ to, icon, children }) => {
@@ -30,13 +46,24 @@ const NavLink = ({ to, icon, children }) => {
 const Navigation = ({ sidebarOpen }) => {
   return (
     <nav className="sidebar-nav">
-      <ul>
-        <NavLink to="/" icon={<Home size={18} />}>Dashboard</NavLink>
-        <NavLink to="/accounts" icon={<Users size={18} />}>Accounts</NavLink>
-        <NavLink to="/script-executor" icon={<Terminal size={18} />}>Script Executor</NavLink>
-        <NavLink to="/processes" icon={<Play size={18} />}>Processes</NavLink>
-        <NavLink to="/money-tracking" icon={<DollarSign size={18} />}>Money Tracking</NavLink>
-      </ul>
+      <div className="nav-section">
+        <ul>
+          <NavLink to="/" icon={<Home size={20} />}>Dashboard</NavLink>
+          <NavLink to="/accounts" icon={<Users size={20} />}>Accounts</NavLink>
+          <NavLink to="/script-executor" icon={<Terminal size={20} />}>Script Executor</NavLink>
+          <NavLink to="/processes" icon={<Play size={20} />}>Processes</NavLink>
+          <NavLink to="/money-tracking" icon={<DollarSign size={20} />}>Money Tracking</NavLink>
+        </ul>
+      </div>
+
+      <div className="nav-section">
+        <div className="nav-section-title">Support</div>
+        <ul>
+          <NavLink to="/settings" icon={<Settings size={20} />}>Settings</NavLink>
+          <NavLink to="/help" icon={<HelpCircle size={20} />}>Help & Support</NavLink>
+          <NavLink to="/about" icon={<Info size={20} />}>About</NavLink>
+        </ul>
+      </div>
     </nav>
   );
 };
@@ -78,11 +105,12 @@ function App() {
       <div className={`app-container ${darkMode ? 'dark-mode' : 'light-mode'}`}>
         <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
           <div className="sidebar-header">
-            <h2 className="app-logo">
+            <div className="app-logo">
+              <div className="logo-icon">R</div>
               <span className="app-logo-text">Roblox Panel</span>
-            </h2>
+            </div>
             <button onClick={toggleSidebar} className="toggle-btn">
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+              <ChevronLeft size={18} />
             </button>
           </div>
           
@@ -91,10 +119,18 @@ function App() {
           </Routes>
           
           <div className="sidebar-footer">
-            {/* <button onClick={toggleTheme} className="theme-toggle-btn">
+            <div className="user-info">
+              <div className="user-avatar">A</div>
+              <div className="user-details">
+                <div className="user-name">Admin</div>
+                <div className="user-role">Control Panel</div>
+              </div>
+            </div>
+            
+            <button onClick={toggleTheme} className="theme-toggle-btn">
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
               <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
-            </button> */}
+            </button>
           </div>
         </div>
 
@@ -112,11 +148,25 @@ function App() {
             <Route path="/script-executor" element={<ScriptExecutor darkMode={darkMode} />} />
             <Route path="/processes" element={<ProcessList darkMode={darkMode} />} />
             <Route path="/money-tracking" element={<MoneyTracking darkMode={darkMode} />} />
+            <Route path="/settings" element={<ComingSoon title="Settings" darkMode={darkMode} />} />
+            <Route path="/help" element={<ComingSoon title="Help & Support" darkMode={darkMode} />} />
+            <Route path="/about" element={<ComingSoon title="About" darkMode={darkMode} />} />
           </Routes>
         </div>
       </div>
     </Router>
   );
 }
+
+// Simple placeholder for routes still under development
+const ComingSoon = ({ title, darkMode }) => (
+  <div className={`p-6 flex flex-col items-center justify-center min-h-[80vh] ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+    <h1 className="text-3xl font-bold mb-4">{title}</h1>
+    <p className="text-xl mb-8">This feature is coming soon!</p>
+    <Link to="/" className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 transition-opacity">
+      Return to Dashboard
+    </Link>
+  </div>
+);
 
 export default App;
