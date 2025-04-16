@@ -6,6 +6,7 @@
 const processService = require('../services/processService');
 const serverBrowserService = require('../services/serverBrowserService');
 const webSocketService = require('../services/webSocketService');
+const moneyTrackingService = require('../services/moneyTrackingService');
 const config = require('../../config');
 
 /**
@@ -13,7 +14,7 @@ const config = require('../../config');
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-function updateGameData(req, res) {
+async function updateGameData(req, res) {
   const { accountName, money, bankMoney, placeId, otherData, hasWebSocket } = req.body;
   
   console.log(`Received game data from ${accountName}: Money=${money}, Bank=${bankMoney}, PlaceId=${placeId}, WebSocket=${hasWebSocket}`);
@@ -28,6 +29,15 @@ function updateGameData(req, res) {
       otherData,
       hasWebSocket
     });
+    
+    // Update money tracking data
+    if (money !== undefined || bankMoney !== undefined) {
+      try {
+        await moneyTrackingService.updateAccountMoney(accountName, money, bankMoney);
+      } catch (error) {
+        console.error(`Error updating money tracking for ${accountName}:`, error);
+      }
+    }
     
     // Check if we should execute auto-movement script
     const accountInfo = processService.launchedProcesses.get(accountName);
@@ -154,10 +164,67 @@ async function getMultipleDifferentJobIds(req, res) {
   }
 }
 
+/**
+ * Gets money tracking data for a specific account or all accounts
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+async function getMoneyTracking(req, res) {
+  try {
+    const { account } = req.query;
+    
+    if (account) {
+      // Get tracking for a specific account
+      const trackingData = await moneyTrackingService.getAccountTracking(account);
+      
+      if (trackingData) {
+        res.json(trackingData);
+      } else {
+        res.status(404).json({ error: 'Account tracking data not found' });
+      }
+    } else {
+      // Get tracking summary for all accounts
+      const summary = await moneyTrackingService.getEarningsSummary();
+      res.json(summary);
+    }
+  } catch (error) {
+    console.error('Error getting money tracking data:', error);
+    res.status(500).json({ error: 'Failed to get money tracking data' });
+  }
+}
+
+/**
+ * Resets money tracking for a specific account
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+async function resetMoneyTracking(req, res) {
+  try {
+    const { account } = req.body;
+    
+    if (!account) {
+      return res.status(400).json({ error: 'Account name is required' });
+    }
+    
+    const success = await moneyTrackingService.resetAccountTracking(account);
+    
+    if (success) {
+      res.json({ success: true, message: `Money tracking reset for account ${account}` });
+    } else {
+      res.status(404).json({ error: 'Account tracking data not found' });
+    }
+  } catch (error) {
+    console.error('Error resetting money tracking:', error);
+    res.status(500).json({ error: 'Failed to reset money tracking' });
+  }
+}
+
 module.exports = {
   updateGameData,
   getGameData,
   getServers,
   getRandomJobId,
-  getMultipleDifferentJobIds
+  getMultipleDifferentJobIds,
+  getMoneyTracking,
+  resetMoneyTracking
 };

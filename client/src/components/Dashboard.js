@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAccounts, getProcesses, launchAccount, setRecommendedServer, getGameData } from '../services/api';
+import { getAccounts, getProcesses, launchAccount, setRecommendedServer, getGameData, getMoneyTracking} from '../services/api';
 import ServerBrowser from './ServerBrowser';
 import '../styles/Dashboard.css'
 import {
@@ -16,7 +16,9 @@ import {
   Database,
   Eye,
   EyeOff,
-  Play
+  Play,
+  DollarSign,
+  Link
 } from 'react-feather';
 
 const Dashboard = () => {
@@ -35,6 +37,7 @@ const Dashboard = () => {
   const [showMonitoringScript, setShowMonitoringScript] = useState(false);
   const [connectedAccounts, setConnectedAccounts] = useState(0);
   const [darkMode, setDarkMode] = useState(false);
+  const [moneyTrackingData, setMoneyTrackingData] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -72,11 +75,13 @@ const Dashboard = () => {
     // Set up polling for process and game data
     const interval = setInterval(async () => {
       try {
-        const [processesData, gameDataResponse] = await Promise.all([
+        const [processesData, gameDataResponse, moneyTrackingSummary] = await Promise.all([
           getProcesses(),
-          getGameData()
+          getGameData(),
+          getMoneyTracking()
         ]);
         setProcesses(processesData);
+        setMoneyTrackingData(moneyTrackingSummary);
 
         // Filter game data to only show accounts with WebSocket connections
         const filteredGameData = gameDataResponse.filter(account => account.hasWebSocket === true);
@@ -263,6 +268,15 @@ const Dashboard = () => {
 
   // Calculate grand total (pocket + bank)
   const grandTotal = totalMoney + totalBankMoney;
+
+  const fetchMoneyTracking = async () => {
+    try {
+      const data = await getMoneyTracking();
+      setMoneyTrackingData(data);
+    } catch (error) {
+      console.error('Error fetching money tracking data:', error);
+    }
+  };
 
   const monitoringScript = `-- Roblox Player Monitoring and Remote Script Execution
 -- This script monitors player stats and enables remote script execution via WebSocket
@@ -808,6 +822,75 @@ end)
             </div>
           </div>
         </div>
+        
+        {/* Money Tracking Overview - only display if we have tracking data */}
+        {moneyTrackingData && (
+          <div className={`col-span-1 lg:col-span-3 rounded-xl p-6 ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700 mt-6`}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <DollarSign className="text-purple-500 mr-2" size={20} />
+                <h2 className="text-xl font-bold">Money Tracking Overview</h2>
+              </div>
+              <Link 
+                to="/money-tracking"
+                className={`px-3 py-1 rounded-lg text-sm ${darkMode ? 'bg-purple-900 hover:bg-purple-800' : 'bg-purple-100 hover:bg-purple-200'} text-purple-600 dark:text-purple-300 transition-colors`}
+              >
+                View Details
+              </Link>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Total Earned */}
+              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} flex items-center`}>
+                <div className="rounded-full p-2 bg-green-100 text-green-600 mr-3">
+                  <DollarSign size={20} />
+                </div>
+                <div>
+                  <p className="text-xs opacity-70">Total Money Earned</p>
+                  <h3 className="text-xl font-bold">${formatMoney(moneyTrackingData.totalEarned || 0)}</h3>
+                </div>
+              </div>
+              
+              {/* Top Earning Account */}
+              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} flex items-center`}>
+                <div className="rounded-full p-2 bg-purple-100 text-purple-600 mr-3">
+                  <Award size={20} />
+                </div>
+                <div>
+                  <p className="text-xs opacity-70">Top Earner</p>
+                  <h3 className="text-lg font-bold truncate">
+                    {moneyTrackingData.topEarningAccount ? (
+                      <>
+                        {moneyTrackingData.topEarningAccount} 
+                        <span className="text-sm font-normal ml-1">
+                          (${formatMoney(moneyTrackingData.topEarningAmount || 0)})
+                        </span>
+                      </>
+                    ) : (
+                      'None'
+                    )}
+                  </h3>
+                </div>
+              </div>
+              
+              {/* Active Accounts */}
+              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700 bg-opacity-50' : 'bg-white bg-opacity-50'} flex items-center`}>
+                <div className="rounded-full p-2 bg-blue-100 text-blue-600 mr-3">
+                  <Users size={20} />
+                </div>
+                <div>
+                  <p className="text-xs opacity-70">Earning Accounts</p>
+                  <h3 className="text-xl font-bold">
+                    {moneyTrackingData.accountsWithEarnings || 0}
+                    <span className="text-sm font-normal ml-1">
+                      of {Object.keys(moneyTrackingData.accountSummaries || {}).length}
+                    </span>
+                  </h3>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Quick Launch Card */}
         <div className={`rounded-xl p-6 ${darkMode ? 'bg-gray-800 bg-opacity-70' : 'bg-white bg-opacity-30'} backdrop-blur-md shadow-lg border border-gray-200 dark:border-gray-700`}>

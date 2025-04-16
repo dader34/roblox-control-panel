@@ -319,6 +319,38 @@ export const getExecutionHistory = async (accountName) => {
   return await apiRequest(`/executionHistory/${accountName}`);
 };
 
+/**
+ * Get money tracking data for all accounts
+ * @returns {Promise<Object>} Money tracking summary
+ */
+export const getMoneyTracking = async () => {
+  return await apiRequest('/moneyTracking');
+};
+
+/**
+ * Get money tracking data for a specific account
+ * @param {string} accountName - Account name
+ * @returns {Promise<Object>} Account tracking data
+ */
+export const getAccountMoneyTracking = async (accountName) => {
+  return await apiRequest(`/moneyTracking?account=${encodeURIComponent(accountName)}`);
+};
+
+/**
+ * Reset money tracking for an account
+ * @param {string} accountName - Account name to reset
+ * @returns {Promise<Object>} Result
+ */
+export const resetMoneyTracking = async (accountName) => {
+  return await apiRequest('/resetMoneyTracking', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ account: accountName })
+  });
+};
+
 
 export default {
   resetProcessMapping,
@@ -342,5 +374,8 @@ export default {
   launchMultipleAccounts,
   executeScript,
   executeScriptOnMultipleAccounts,
-  getExecutionHistory
+  getExecutionHistory,
+  getMoneyTracking,
+  getAccountMoneyTracking,
+  resetMoneyTracking
 };

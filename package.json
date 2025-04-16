@@ -4,7 +4,7 @@
     "description": "A control panel for managing Roblox accounts and instances",
     "main": "server/index.js",
     "scripts": {
-        "start": "node server/index.js",
+        "start": "cd client && npm run build && cd .. && node server/index.js ",
         "dev": "nodemon server/index.js",
         "test": "echo \"Error: no test specified\" && exit 1",
         "build": "cd client && npm run build"

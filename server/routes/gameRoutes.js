@@ -23,6 +23,12 @@ router.get('/randomJobId', gameController.getRandomJobId);
 // GET /api/multipleDifferentJobIds - Get multiple different job IDs for a place
 router.get('/multipleDifferentJobIds', gameController.getMultipleDifferentJobIds);
 
+// GET /api/moneyTracking - Get money tracking data (all accounts or specific account)
+router.get('/moneyTracking', gameController.getMoneyTracking);
+
+// POST /api/resetMoneyTracking - Reset money tracking for an account
+router.post('/resetMoneyTracking', gameController.resetMoneyTracking);
+
 router.get('/testLaunch', (req, res) => {
     const { account, placeId } = req.query;
     const http = require('http');

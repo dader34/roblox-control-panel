@@ -4,7 +4,8 @@ import Dashboard from './components/Dashboard';
 import AccountList from './components/AccountList';
 import ProcessList from './components/ProcessList';
 import ScriptExecutor from './components/ScriptExecutor';
-import { Menu, X, Home, Users, Terminal, Play, Moon, Sun } from 'react-feather';
+import MoneyTracking from './components/MoneyTracking';
+import { Menu, X, Home, Users, Terminal, Play, Moon, Sun, DollarSign } from 'react-feather';
 import './styles/App.css';
 
 // NavLink component to handle active states
@@ -34,6 +35,7 @@ const Navigation = ({ sidebarOpen }) => {
         <NavLink to="/accounts" icon={<Users size={18} />}>Accounts</NavLink>
         <NavLink to="/script-executor" icon={<Terminal size={18} />}>Script Executor</NavLink>
         <NavLink to="/processes" icon={<Play size={18} />}>Processes</NavLink>
+        <NavLink to="/money-tracking" icon={<DollarSign size={18} />}>Money Tracking</NavLink>
       </ul>
     </nav>
   );
@@ -109,6 +111,7 @@ function App() {
             <Route path="/accounts" element={<AccountList darkMode={darkMode} />} />
             <Route path="/script-executor" element={<ScriptExecutor darkMode={darkMode} />} />
             <Route path="/processes" element={<ProcessList darkMode={darkMode} />} />
+            <Route path="/money-tracking" element={<MoneyTracking darkMode={darkMode} />} />
           </Routes>
         </div>
       </div>
